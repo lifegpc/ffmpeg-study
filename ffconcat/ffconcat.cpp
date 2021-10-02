@@ -102,7 +102,7 @@ int ffconcat(std::string out, std::list<std::string> inp, ffconcath config) {
         rev = 6;
         goto end;
     }
-    int64_t ldts = 0, lpts = 0, dts = 0, pts = 0, dur = 0;
+    int64_t duration = 0;
     do {
         if (i != inp.begin()) {
             if ((ret = avformat_open_input(&ic, (*i).c_str(), nullptr, nullptr)) != 0) {
@@ -134,13 +134,11 @@ int ffconcat(std::string out, std::list<std::string> inp, ffconcath config) {
             // if (config.verbose) {
             //    log_packet(ic, &pkt, "in");
             // }
-            pkt.flags |= AV_PKT_FLAG_KEY;
-            pts = av_rescale_q_rnd(pkt.pts, is->time_base, os->time_base, to_avround(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX));
-            pkt.pts = pts + lpts;
-            dts = av_rescale_q_rnd(pkt.dts, is->time_base, os->time_base, to_avround(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX));
-            pkt.dts = dts + ldts;
+            AVRational base = {1, 1000000};
+            int64_t delta = av_rescale_q(duration, base, os->time_base);
+            pkt.pts = av_rescale_q_rnd(pkt.pts, is->time_base, os->time_base, to_avround(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX)) + delta;
+            pkt.dts = av_rescale_q_rnd(pkt.dts, is->time_base, os->time_base, to_avround(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX)) + delta;
             pkt.duration = av_rescale_q(pkt.duration, is->time_base, os->time_base);
-            dur = pkt.duration;
             pkt.pos = -1;
             // if (config.verbose) {
             //    log_packet(oc, &pkt, "in");
@@ -151,8 +149,7 @@ int ffconcat(std::string out, std::list<std::string> inp, ffconcath config) {
             }
             av_packet_unref(&pkt);
         }
-        ldts += dts + dur;
-        lpts += pts + dur;
+        duration += ic->duration;
         avformat_close_input(&ic);
         i++;
     } while (i != inp.end());

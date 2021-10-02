@@ -4,7 +4,7 @@
 #include <list>
 
 typedef struct ffconcath {
-    bool verbose;
+    bool verbose = false;
 } ffconcath;
 
 int ffconcat(std::string out, std::list<std::string> inp, ffconcath config);
