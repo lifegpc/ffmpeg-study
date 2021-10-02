@@ -102,6 +102,7 @@ int ffconcat(std::string out, std::list<std::string> inp, ffconcath config) {
         rev = 6;
         goto end;
     }
+    int64_t ldts = 0, lpts = 0, dts = 0, pts = 0, dur = 0;
     do {
         if (i != inp.begin()) {
             if ((ret = avformat_open_input(&ic, (*i).c_str(), nullptr, nullptr)) != 0) {
@@ -116,7 +117,6 @@ int ffconcat(std::string out, std::list<std::string> inp, ffconcath config) {
                 av_dump_format(ic, 0, (*i).c_str(), 0);
             }
         }
-        int64_t ldts = 0, lpts = 0, dts = 0, pts = 0, dur = 0;
         while (true) {
             AVStream *is, *os;
             if ((ret = av_read_frame(ic, &pkt)) < 0) {
