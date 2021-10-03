@@ -2,6 +2,8 @@
 #include "wchar_util.h"
 #include <list>
 #include "ffconcat.h"
+#include "fileop.h"
+#include <stdio.h>
 
 #if _WIN32
 #include "Windows.h"
@@ -76,6 +78,19 @@ int main(int argc, char* argv[]) {
         printf("Output file: %s\n", output.c_str());
         for(auto i = li.begin(); i != li.end(); i++) {
             printf("Input file: %s\n", (*i).c_str());
+        }
+    }
+    if (fileop::exists(output)) {
+        printf("Output file already exists, do you want to overwrite it? (y/n)");
+        int c = getchar();
+        while (c != 'y' && c != 'n') {
+            c = getchar();
+        }
+        if (c == 'n') {
+            return 0;
+        }
+        if (!fileop::remove(output, true)) {
+            return 1;
         }
     }
     ffconcath conf;
