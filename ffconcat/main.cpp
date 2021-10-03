@@ -1,3 +1,7 @@
+#if HAVE_FFCONCAT_CONFIG_H
+#include "ffconcat_config.h"
+#endif
+
 #include "getopt.h"
 #include "wchar_util.h"
 #include <list>
@@ -9,18 +13,20 @@
 #include "Windows.h"
 #endif
 
-#if _WIN32
+#if HAVE_PRINTF_S
 #define printf printf_s
 #endif
 
 void print_help() {
-    printf("%s", "Usage: main [options] [FILE [..]]\n\
+    printf("%s", "Usage: ffconcat [options] [FILE [..]]\n\
 Concat video files\n\
 \n\
 Options:\n\
     -h, --help              Print help message.\n\
     -o, --output [FILE]     Specifiy output file location. Default output location: a.mp4.\n\
-    -v, --verbose           Enable verbose logging\n");
+    -v, --verbose           Enable verbose logging.\n\
+    -d, --debug             Enable debug logging.\n\
+    -t, --trace             Enable trace logging.\n");
 }
 
 int main(int argc, char* argv[]) {
@@ -39,13 +45,17 @@ int main(int argc, char* argv[]) {
         {"help", 0, nullptr, 'h'},
         {"output", 1, nullptr, 'o'},
         {"verbose", 0, nullptr, 'v'},
+        {"debug", 0, nullptr, 'd'},
+        {"trace", 0, nullptr, 't'},
         nullptr,
     };
     int c;
-	const char* shortopts = "-ho:v";
+    const char* shortopts = "-ho:vdt";
     std::string output = "a.mp4";
     std::list<std::string> li;
     bool verbose = false;
+    bool debug = false;
+    bool trace = false;
     while ((c = getopt_long(argc, argv, shortopts, opts, nullptr)) != -1) {
         switch (c) {
             case 'h':
@@ -58,6 +68,15 @@ int main(int argc, char* argv[]) {
                 output = optarg;
                 break;
             case 'v':
+                verbose = true;
+                break;
+            case 'd':
+                debug = true;
+                verbose = true;
+                break;
+            case 't':
+                trace = true;
+                debug = true;
                 verbose = true;
                 break;
             case 1:
@@ -95,6 +114,8 @@ int main(int argc, char* argv[]) {
     }
     ffconcath conf;
     conf.verbose = verbose;
+    conf.debug = debug;
+    conf.trace = trace;
     int re = ffconcat(output, li, conf);
     return re;
 }

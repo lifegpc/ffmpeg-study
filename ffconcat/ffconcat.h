@@ -5,6 +5,8 @@
 
 typedef struct ffconcath {
     bool verbose = false;
+    bool debug = false;
+    bool trace = false;
 } ffconcath;
 
 int ffconcat(std::string out, std::list<std::string> inp, ffconcath config);

@@ -1,3 +1,7 @@
+#if HAVE_FFCONCAT_CONFIG_H
+#include "ffconcat_config.h"
+#endif
+
 #include "ffconcat.h"
 extern "C" {
     #include "libavutil/log.h"
@@ -9,7 +13,7 @@ extern "C" {
     }
 }
 
-#if _WIN32
+#if HAVE_PRINTF_S
 #define printf printf_s
 #endif
 
@@ -30,7 +34,11 @@ int ffconcat(std::string out, std::list<std::string> inp, ffconcath config) {
         printf("Error: %s\n", "No input file specified.");
         return 1;
     }
-    if (config.verbose) {
+    if (config.trace) {
+        av_log_set_level(AV_LOG_TRACE);
+    } else if (config.debug) {
+        av_log_set_level(AV_LOG_DEBUG);
+    } else if (config.verbose) {
         av_log_set_level(AV_LOG_VERBOSE);
     }
     AVFormatContext *oc = nullptr, *ic = nullptr;
@@ -131,18 +139,18 @@ int ffconcat(std::string out, std::list<std::string> inp, ffconcath config) {
             }
             pkt.stream_index = map[pkt.stream_index];
             os = oc->streams[pkt.stream_index];
-            // if (config.verbose) {
-            //    log_packet(ic, &pkt, "in");
-            // }
+            if (config.trace) {
+                log_packet(ic, &pkt, "in");
+            }
             AVRational base = {1, 1000000};
             int64_t delta = av_rescale_q(duration, base, os->time_base);
             pkt.pts = av_rescale_q_rnd(pkt.pts, is->time_base, os->time_base, to_avround(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX)) + delta;
             pkt.dts = av_rescale_q_rnd(pkt.dts, is->time_base, os->time_base, to_avround(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX)) + delta;
             pkt.duration = av_rescale_q(pkt.duration, is->time_base, os->time_base);
             pkt.pos = -1;
-            // if (config.verbose) {
-            //    log_packet(oc, &pkt, "in");
-            // }
+            if (config.trace) {
+                log_packet(oc, &pkt, "out");
+            }
             if ((ret = av_interleaved_write_frame(oc, &pkt)) < 0) {
                 printf("Error muxing packet\n");
                 break;

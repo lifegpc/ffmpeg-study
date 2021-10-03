@@ -15,6 +15,12 @@ find_package(AVUTIL 57 REQUIRED)
 include_directories(${AVFORMAT_INCLUDE_DIRS})
 
 include(CheckIncludeFiles)
+include(CheckSymbolExists)
+if (WIN32)
+    check_symbol_exists(printf_s "stdio.h" HAVE_PRINTF_S)
+endif()
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/ffconcat_config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/ffconcat_config.h")
+include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 CHECK_INCLUDE_FILES(getopt.h HAVE_GETOPT_H)
 if (NOT HAVE_GETOPT_H)
@@ -25,6 +31,7 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../utils" "${CMAKE_BINARY_DIR}/uti
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../utils")
 
 add_executable(ffconcat ffconcat.h ffconcat.cpp main.cpp)
+target_compile_definitions(ffconcat PRIVATE HAVE_FFCONCAT_CONFIG_H)
 if (TARGET getopt)
     target_link_libraries(ffconcat getopt)
 endif()
