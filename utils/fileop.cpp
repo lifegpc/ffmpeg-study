@@ -27,7 +27,7 @@
 
 #ifdef _WIN32
 bool exists_internal(wchar_t* fn) {
-	return !_waccess(fn, 0);
+    return !_waccess(fn, 0);
 }
 
 bool remove_internal(wchar_t* fn, bool print_error) {
@@ -44,30 +44,30 @@ bool remove_internal(wchar_t* fn, bool print_error) {
 
 template <typename T, typename ... Args>
 T fileop_internal(const char* fname, UINT codePage, T(*callback)(wchar_t* fn, Args... args), T failed, Args... args) {
-	int wlen;
-	wchar_t* fn;
-	DWORD opt = wchar_util::getMultiByteToWideCharOptions(MB_ERR_INVALID_CHARS, codePage);
-	wlen = MultiByteToWideChar(codePage, opt, fname, -1, NULL, 0);
-	if (!wlen) return failed;
-	fn = (wchar_t*)malloc(sizeof(wchar_t) * wlen);
-	if (!MultiByteToWideChar(codePage, opt, fname, -1, fn, wlen)) {
-		free(fn);
-		return failed;
-	}
-	T re = callback(fn, args...);
-	free(fn);
-	return re;
+    int wlen;
+    wchar_t* fn;
+    DWORD opt = wchar_util::getMultiByteToWideCharOptions(MB_ERR_INVALID_CHARS, codePage);
+    wlen = MultiByteToWideChar(codePage, opt, fname, -1, NULL, 0);
+    if (!wlen) return failed;
+    fn = (wchar_t*)malloc(sizeof(wchar_t) * wlen);
+    if (!MultiByteToWideChar(codePage, opt, fname, -1, fn, wlen)) {
+        free(fn);
+        return failed;
+    }
+    T re = callback(fn, args...);
+    free(fn);
+    return re;
 }
 #endif
 
 bool fileop::exists(std::string fn) {
 #if _WIN32
     UINT cp[] = { CP_UTF8, CP_OEMCP, CP_ACP };
-	int i;
-	for (i = 0; i < 3; i++) {
-		if (fileop_internal(fn.c_str(), cp[i], &exists_internal, false)) return true;
-	}
-	return !access(fn.c_str(), 0);
+    int i;
+    for (i = 0; i < 3; i++) {
+        if (fileop_internal(fn.c_str(), cp[i], &exists_internal, false)) return true;
+    }
+    return !access(fn.c_str(), 0);
 #else
     return !access(fn.c_str(), 0);
 #endif
@@ -76,10 +76,10 @@ bool fileop::exists(std::string fn) {
 bool fileop::remove(std::string fn, bool print_error) {
 #if _WIN32
     UINT cp[] = { CP_UTF8, CP_OEMCP, CP_ACP };
-	int i;
-	for (i = 0; i < 3; i++) {
-		if (fileop_internal(fn.c_str(), cp[i], &remove_internal, false, print_error)) return true;
-	}
+    int i;
+    for (i = 0; i < 3; i++) {
+        if (fileop_internal(fn.c_str(), cp[i], &remove_internal, false, print_error)) return true;
+    }
 #endif
     int ret = ::remove(fn.c_str());
     if (ret && print_error) {

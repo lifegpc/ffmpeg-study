@@ -83,7 +83,7 @@ int main(int argc, char* argv[]) {
                 li.push_back(optarg);
                 break;
             case '?':
-		    default:
+            default:
 #if _WIN32
                 if (have_wargv) wchar_util::freeArgv(wargv, wargc);
 #endif
