@@ -95,6 +95,11 @@ int ffconcat(std::string out, std::list<std::string> inp, ffconcath config) {
             rev = 5;
             goto end;
         }
+        if (oc->oformat->name && !strcmp(oc->oformat->name, "ipod")) {
+            if (is->codecpar->codec_id == AV_CODEC_ID_MJPEG) {
+                os->disposition = os->disposition | AV_DISPOSITION_ATTACHED_PIC;
+            }
+        }
         os->codecpar->codec_tag = 0;
     }
     av_dump_format(oc, 0, out.c_str(), 1);
@@ -142,7 +147,7 @@ int ffconcat(std::string out, std::list<std::string> inp, ffconcath config) {
             if (config.trace) {
                 log_packet(ic, &pkt, "in");
             }
-            AVRational base = {1, 1000000};
+            AVRational base = {1, AV_TIME_BASE};
             int64_t delta = av_rescale_q(duration, base, os->time_base);
             pkt.pts = av_rescale_q_rnd(pkt.pts, is->time_base, os->time_base, to_avround(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX)) + delta;
             pkt.dts = av_rescale_q_rnd(pkt.dts, is->time_base, os->time_base, to_avround(AV_ROUND_NEAR_INF|AV_ROUND_PASS_MINMAX)) + delta;
@@ -163,12 +168,12 @@ int ffconcat(std::string out, std::list<std::string> inp, ffconcath config) {
     } while (i != inp.end());
     av_write_trailer(oc);
 end:
-    if (!oc) {
+    if (oc) {
         if (!(oc->oformat->flags & AVFMT_NOFILE)) avio_closep(&oc->pb);
         avformat_free_context(oc);
     }
-    if (!ic) avformat_close_input(&ic);
-    if (!map) free(map);
+    if (ic) avformat_close_input(&ic);
+    if (map) free(map);
     if (ret < 0 && ret != AVERROR_EOF) {
         char err[AV_ERROR_MAX_STRING_SIZE];
         printf("Error occurred: %s\n", av_make_error_string(err, AV_ERROR_MAX_STRING_SIZE, ret));
