@@ -65,6 +65,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
     char has_img = 0, img_extra_file = 0, has_audio = 0;
     unsigned int img_stream_index = 0, audio_stream_index = 0, img_dest_index = 0, audio_dest_index = 0, map_index = 0;
     AVPacket pkt;
+    int64_t audio_dts;
     if ((ret = avformat_open_input(&ic, input, NULL, NULL)) != 0) {
         rev = ENM4A_FFMPEG_ERR;
         goto end;
@@ -287,7 +288,8 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
             av_packet_unref(&pkt);
         }
     }
-    char cn_img = has_img && !img_extra_file, first_pkt = 1;
+    char cn_img = has_img && !img_extra_file;
+    audio_dts = INT64_MIN;
     while (1) {
         AVStream* is = NULL, * os = NULL;
         if ((ret = av_read_frame(ic, &pkt)) < 0) {
@@ -310,6 +312,14 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
         }
         pkt.pts = av_rescale_q_rnd(pkt.pts, is->time_base, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
         pkt.dts = av_rescale_q_rnd(pkt.dts, is->time_base, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
+        if (pkt.stream_index == audio_stream_index) {
+            if (audio_dts != INT64_MIN && audio_dts > pkt.dts) {
+                av_log(NULL, AV_LOG_WARNING, "Non-monotonous DTS in output stream 0:%u; previous: %lli, current: %lli; changing to %lli. This may result in incorrect timestamps in the output file.\n", ind, audio_dts, pkt.dts, audio_dts + 1);
+                pkt.dts = audio_dts + 1;
+                pkt.pts = audio_dts + 1;
+            }
+            audio_dts = pkt.dts;
+        }
         pkt.duration = av_rescale_q(pkt.duration, is->time_base, os->time_base);
         pkt.pos = -1;
         pkt.stream_index = ind;
