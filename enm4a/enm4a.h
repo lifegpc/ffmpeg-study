@@ -4,8 +4,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct Enm4aNoInTotal Enm4aNoInTotal;
-
 typedef enum ENM4A_ERROR {
     ENM4A_OK,
     ENM4A_NULL_POINTER,
@@ -29,18 +27,11 @@ typedef struct ENM4A_ARGS {
     char* album;
     char* album_artist;
     char* cover;
-    Enm4aNoInTotal* disc;
-    Enm4aNoInTotal* track;
+    char* disc;
+    char* track;
+    char* date;
 } ENM4A_ARGS;
 
-/**
- * @brief Parse no in total
- * @param dest Result
- * @param s Input string. such as 1/1.
- * @return ENM4A_OK if success.
-*/
-ENM4A_ERROR parse_no_in_total(Enm4aNoInTotal* dest, const char* s);
-ENM4A_ERROR new_no_in_total(Enm4aNoInTotal* dest, size_t no, size_t total);
 ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args);
 const char* enm4a_error_msg(ENM4A_ERROR err);
 #ifdef __cplusplus

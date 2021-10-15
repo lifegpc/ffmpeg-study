@@ -21,11 +21,15 @@ endif()
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/utils_config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/utils_config.h")
 
 set(SOURCE_FILE
+    cpp2c.cpp
+    cstr_util.c
     err.cpp
     fileop.cpp
     wchar_util.cpp
 )
 set(SOURCE_FILE_HEADERS
+    cpp2c.h
+    cstr_util.h
     err.h
     fileop.h
     list_pointer.h

@@ -9,46 +9,17 @@
 #include <malloc.h>
 #include <stdio.h>
 
+#include "cstr_util.h"
 #include "libavformat/avformat.h"
 #include "libavutil/log.h"
+#include "libavutil/dict.h"
 
+#if HAVE_PRINTF_S
+#define printf printf_s
+#endif
 #ifdef HAVE_SSCANF_S
 #define sscanf sscanf_s
 #endif
-
-typedef struct Enm4aNoInTotal {
-    size_t no;
-    size_t total;
-} Enm4aNoInTotal;
-
-ENM4A_ERROR parse_no_in_total(Enm4aNoInTotal* dest, const char* s) {
-    if (!dest) return ENM4A_NULL_POINTER;
-    size_t olen = strlen(s);
-    char* temp = malloc(olen + 1);
-    if (!temp) return ENM4A_NO_MEMORY;
-    size_t dlen = 0;
-    for (size_t i = 0; i < olen; i++) {
-        if (s[i] != ' ') {
-            temp[dlen++] = s[i];
-        }
-    }
-    temp[dlen] = 0;
-    size_t n = 0, t = 0;
-    int re = sscanf(temp, "%zi/%zi", &n, &t);
-    free(temp);
-    if (re != 2 || n > t) return ENM4A_INVALID_NO_IN_TOTAL;
-    dest->no = n;
-    dest->total = t;
-    return ENM4A_OK;
-}
-
-ENM4A_ERROR new_no_in_total(Enm4aNoInTotal* dest, size_t no, size_t total) {
-    if (!dest) return ENM4A_NULL_POINTER;
-    if (no > total) return ENM4A_INVALID_NO_IN_TOTAL;
-    dest->no = no;
-    dest->total = total;
-    return ENM4A_OK;
-}
 
 ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
     if (!input) return ENM4A_NULL_POINTER;
@@ -75,11 +46,39 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
         goto end;
     }
     av_dump_format(ic, 0, input, 0);
+    char* title = NULL;
+    if (!args.title || !strlen(args.title)) {
+        if (ic->metadata) {
+            AVDictionaryEntry* en = av_dict_get(ic->metadata, "title", NULL, 0);
+            if (en) {
+                int re = cstr_util_copy_str(&title, en->value);
+                if (!re) {
+                    rev = re == 2 ? ENM4A_NO_MEMORY : ENM4A_NULL_POINTER;
+                    goto end;
+                }
+                if (args.level >= ENM4A_LOG_VERBOSE) {
+                    printf("Get title from file metadata : %s\n", title);
+                }
+            }
+        }
+    } else {
+        int re = cstr_util_copy_str(&title, args.title);
+        if (!re) {
+            rev = re == 2 ? ENM4A_NO_MEMORY : ENM4A_NULL_POINTER;
+            goto end;
+        }
+        if (args.level >= ENM4A_LOG_VERBOSE) {
+            printf("Get title from input argument: %s\n", title);
+        }
+    }
 end:
     if (ic) avformat_close_input(&ic);
     if (ret < 0 && ret != AVERROR_EOF) {
         char err[AV_ERROR_MAX_STRING_SIZE];
         printf("Error occurred: %s\n", av_make_error_string(err, AV_ERROR_MAX_STRING_SIZE, ret));
+    }
+    if (title) {
+        free(title);
     }
     return rev;
 }
@@ -92,9 +91,7 @@ const char* enm4a_error_msg(ENM4A_ERROR err) {
     case ENM4A_NULL_POINTER:
         return "Null pointer";
     case ENM4A_NO_MEMORY:
-        return "Don't have enough memory.";
-    case ENM4A_INVALID_NO_IN_TOTAL:
-        return "No is greater than total.";
+        return "Out of memory";
     case ENM4A_FFMPEG_ERR:
         return "An error occured in ffmpeg code.";
     default:
