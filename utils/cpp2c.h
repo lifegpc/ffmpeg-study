@@ -10,7 +10,7 @@ namespace cpp2c {
      * @param out The pointer to output buffer. Need free memory by using free.
      * @return true if succeeded.
     */
-    bool string2char(std::string inp, char** out);
+    bool string2char(std::string inp, char*& out);
 }
 
 #endif

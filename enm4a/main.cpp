@@ -24,15 +24,24 @@ Convert to m4a file\n\
 \n\
 Options:\n\
     -h, --help              Print help message.\n\
-    -o, --output [FILE]     Specifiy output file location. Default output location: <title>.m4a.\n\
+    -o, --output <FILE>     Specifiy output file location. Default output location: <title>.m4a.\n\
                             If title is not found, use \"a\" instead.\n\
     -v, --verbose           Enable verbose logging.\n\
-    -d, --debug             Enable debug logging.\n\
+        --debug             Enable debug logging.\n\
         --trace             Enable trace logging.\n\
-    -t, --title <title>     Sepcify title of song.\n");
+    -t, --title <title>     Sepcify title of song.\n\
+    -c, --cover <path>      Sepcify cover image.\n\
+    -a, --artist <name>     Sepcify artist's name.\n\
+    -A, --album <name>      Sepcify album's name.\n\
+        --album_artist <name>   Specify album artist.\n\
+    -d, --disc <num>        Specify disc number.\n\
+    -T, --track <track>     Specify track number.\n\
+    -D, --date <date>       Specify release date/year.\n");
 }
 
 #define ENM4A_TRACE 129
+#define ENM4A_ALBUM_ARTIST 130
+#define ENM4A_DEBUG 131
 
 int main(int argc, char* argv[]) {
 #if _WIN32
@@ -57,17 +66,32 @@ int main(int argc, char* argv[]) {
         {"help", 0, nullptr, 'h'},
         {"output", 1, nullptr, 'o'},
         {"verbose", 0, nullptr, 'v'},
-        {"debug", 0, nullptr, 'd'},
+        {"debug", 0, nullptr, ENM4A_DEBUG},
         {"trace", 0, nullptr, ENM4A_TRACE},
         {"title", 1, nullptr, 't'},
+        {"cover", 1, nullptr, 'c'},
+        {"artist", 1, nullptr, 'a'},
+        {"album", 1, nullptr, 'A'},
+        {"album_artist", 1, nullptr, ENM4A_ALBUM_ARTIST},
+        {"album-artist", 1, nullptr, ENM4A_ALBUM_ARTIST},
+        {"disc", 1, nullptr, 'd'},
+        {"track", 1, nullptr, 'T'},
+        {"date", 1, nullptr, 'D'},
         nullptr,
     };
     int c;
-    const char* shortopts = "-ho:vdt:";
+    const char* shortopts = "-ho:vd:t:c:a:A:T:D:";
     std::string output = "";
     std::string input = "";
     ENM4A_LOG level = ENM4A_LOG_INFO;
     std::string title = "";
+    std::string cover = "";
+    std::string artist = "";
+    std::string album = "";
+    std::string album_artist = "";
+    std::string disc = "";
+    std::string track = "";
+    std::string date = "";
     while ((c = getopt_long(argc, argv, shortopts, opts, nullptr)) != -1) {
         switch (c) {
         case 'h':
@@ -82,7 +106,7 @@ int main(int argc, char* argv[]) {
         case 'v':
             level = ENM4A_LOG_VERBOSE;
             break;
-        case 'd':
+        case ENM4A_DEBUG:
             level = ENM4A_LOG_DEBUG;
             break;
         case ENM4A_TRACE:
@@ -90,6 +114,27 @@ int main(int argc, char* argv[]) {
             break;
         case 't':
             title = optarg;
+            break;
+        case 'c':
+            cover = optarg;
+            break;
+        case 'a':
+            artist = optarg;
+            break;
+        case 'A':
+            album = optarg;
+            break;
+        case ENM4A_ALBUM_ARTIST:
+            album_artist = optarg;
+            break;
+        case 'd':
+            disc = optarg;
+            break;
+        case 'T':
+            track = optarg;
+            break;
+        case 'D':
+            date = optarg;
             break;
         case 1:
             if (!input.length()) {
@@ -124,11 +169,18 @@ int main(int argc, char* argv[]) {
     memset(&arg, 0, sizeof(ENM4A_ARGS));
     arg.level = level;
     if (output.length()) {
-        if (!cpp2c::string2char(output, &arg.output)) return 1;
+        if (!cpp2c::string2char(output, arg.output)) return 1;
     }
     if (title.length()) {
-        if (!cpp2c::string2char(title, &arg.title)) return 1;
+        if (!cpp2c::string2char(title, arg.title)) return 1;
     }
+    if (cover.length() && !cpp2c::string2char(cover, arg.cover)) return 1;
+    if (artist.length() && !cpp2c::string2char(artist, arg.artist)) return 1;
+    if (album.length() && !cpp2c::string2char(album, arg.album)) return 1;
+    if (album_artist.length() && !cpp2c::string2char(album_artist, arg.album_artist)) return 1;
+    if (disc.length() && !cpp2c::string2char(disc, arg.disc)) return 1;
+    if (track.length() && !cpp2c::string2char(track, arg.track)) return 1;
+    if (date.length() && !cpp2c::string2char(date, arg.date)) return 1;
     ENM4A_ERROR re = encode_m4a(input.c_str(), arg);
     if (arg.output) {
         free(arg.output);
@@ -136,6 +188,13 @@ int main(int argc, char* argv[]) {
     if (arg.title) {
         free(arg.title);
     }
+    if (arg.cover) free(arg.cover);
+    if (arg.artist) free(arg.artist);
+    if (arg.album) free(arg.album);
+    if (arg.album_artist) free(arg.album_artist);
+    if (arg.disc) free(arg.disc);
+    if (arg.track) free(arg.track);
+    if (arg.date) free(arg.date);
     if (re != ENM4A_OK) {
         if (re != ENM4A_FFMPEG_ERR) {
             printf("%s\n", enm4a_error_msg(re));

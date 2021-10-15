@@ -8,8 +8,10 @@ typedef enum ENM4A_ERROR {
     ENM4A_OK,
     ENM4A_NULL_POINTER,
     ENM4A_NO_MEMORY,
-    ENM4A_INVALID_NO_IN_TOTAL,
     ENM4A_FFMPEG_ERR,
+    ENM4A_FILE_EXISTS,
+    ENM4A_ERR_REMOVE_FILE,
+    ENM4A_NO_AUDIO,
 } ENM4A_ERROR;
 
 typedef enum ENM4A_LOG {
@@ -19,8 +21,15 @@ typedef enum ENM4A_LOG {
     ENM4A_LOG_TRACE,
 } ENM4A_LOG;
 
+typedef enum ENM4A_OVERWRITE {
+    ENM4A_OVERWRITE_ASK,
+    ENM4A_OVERWRITE_YES,
+    ENM4A_OVERWRITE_NO,
+} ENM4A_OVERWRITE;
+
 typedef struct ENM4A_ARGS {
     ENM4A_LOG level;
+    ENM4A_OVERWRITE overwrite;
     char* output;
     char* title;
     char* artist;

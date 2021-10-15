@@ -12,8 +12,7 @@
 #define printf printf_s
 #endif
 
-bool cpp2c::string2char(std::string inp, char** out) {
-    if (out == nullptr) return false;
+bool cpp2c::string2char(std::string inp, char*& out) {
     size_t le = inp.length();
     char* temp = (char*)malloc(le + 1);
     if (!temp) {
@@ -22,6 +21,6 @@ bool cpp2c::string2char(std::string inp, char** out) {
     }
     memcpy(temp, inp.c_str(), le);
     temp[le] = 0;
-    out = &temp;
+    out = temp;
     return true;
 }

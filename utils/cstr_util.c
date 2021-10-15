@@ -12,6 +12,6 @@ int cstr_util_copy_str(char** dest, const char* str) {
     }
     memcpy(temp, str, le);
     temp[le] = 0;
-    dest = &temp;
+    *dest = temp;
     return 0;
 }
