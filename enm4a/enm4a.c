@@ -14,6 +14,7 @@
 #include "libavformat/avformat.h"
 #include "libavutil/log.h"
 #include "libavutil/dict.h"
+#include "libavutil/timestamp.h"
 
 #if HAVE_PRINTF_S
 #define printf printf_s
@@ -21,6 +22,15 @@
 #ifdef HAVE_SSCANF_S
 #define sscanf sscanf_s
 #endif
+
+void log_packet(const AVFormatContext* fmt_ctx, const AVPacket* pkt, const char* tag) {
+    AVRational* time_base = &fmt_ctx->streams[pkt->stream_index]->time_base;
+    printf("%s: pts:%s pts_time:%s dts:%s dts_time:%s duration:%s duration_time:%s stream_index:%d\n",
+        tag, av_ts2str(pkt->pts), av_ts2timestr(pkt->dts, time_base),
+        av_ts2str(pkt->dts), av_ts2timestr(pkt->dts, time_base),
+        av_ts2str(pkt->duration), av_ts2timestr(pkt->duration, time_base),
+        pkt->stream_index);
+}
 
 void set_ctx_metadata(AVFormatContext *ctx, const AVFormatContext *in, const char* key, const char* argu) {
     if (!argu || !strlen(argu)) {
@@ -53,7 +63,8 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
     ENM4A_ERROR rev = ENM4A_OK;
     char* title = NULL, * out = NULL;
     char has_img = 0, img_extra_file = 0, has_audio = 0;
-    unsigned int img_stream_index = 0, audio_stream_index = 0;
+    unsigned int img_stream_index = 0, audio_stream_index = 0, img_dest_index = 0, audio_dest_index = 0, map_index = 0;
+    AVPacket pkt;
     if ((ret = avformat_open_input(&ic, input, NULL, NULL)) != 0) {
         rev = ENM4A_FFMPEG_ERR;
         goto end;
@@ -178,6 +189,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
                 has_img = 1;
                 img_extra_file = 1;
                 img_stream_index = i;
+                img_dest_index = map_index++;
             }
         }
         if (!has_img) {
@@ -200,6 +212,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
             os->codecpar->codec_tag = 0;
             has_audio = 1;
             audio_stream_index = i;
+            audio_dest_index = map_index++;
         } else if (!has_img) {
             if (is->codecpar->codec_id == AV_CODEC_ID_MJPEG) {
                 os = avformat_new_stream(oc, NULL);
@@ -215,6 +228,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
                 os->codecpar->codec_tag = 0;
                 has_img = 1;
                 img_stream_index = i;
+                img_dest_index = map_index++;
             }
         }
     }
@@ -230,6 +244,85 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
     set_ctx_metadata(oc, ic, "track", args.track);
     set_ctx_metadata(oc, ic, "date", args.date);
     av_dump_format(oc, 0, out, 1);
+    if (!(oc->oformat->flags & AVFMT_NOFILE)) {
+        if ((ret = avio_open(&oc->pb, out, AVIO_FLAG_WRITE)) < 0) {
+            rev = ENM4A_ERR_OPEN_FILE;
+            goto end;
+        }
+    }
+    if ((ret = avformat_write_header(oc, NULL)) < 0) {
+        rev = ENM4A_FFMPEG_ERR;
+        goto end;
+    }
+    if (imgc && has_img && img_extra_file) {
+        while (1) {
+            AVStream* is = NULL, * os = NULL;
+            if ((ret = av_read_frame(imgc, &pkt)) < 0) {
+                if (ret == AVERROR_EOF) break;
+                rev = ENM4A_FFMPEG_ERR;
+                goto end;
+            }
+            if (pkt.data == NULL) break;
+            is = imgc->streams[pkt.stream_index];
+            if (pkt.stream_index != img_stream_index) {
+                av_packet_unref(&pkt);
+                continue;
+            }
+            os = oc->streams[img_dest_index];
+            if (args.level >= ENM4A_LOG_TRACE) {
+                log_packet(imgc, &pkt, "in");
+            }
+            pkt.pts = av_rescale_q_rnd(pkt.pts, is->time_base, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
+            pkt.dts = av_rescale_q_rnd(pkt.dts, is->time_base, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
+            pkt.duration = av_rescale_q(pkt.duration, is->time_base, os->time_base);
+            pkt.pos = -1;
+            pkt.stream_index = img_dest_index;
+            if (args.level >= ENM4A_LOG_TRACE) {
+                log_packet(oc, &pkt, "out");
+            }
+            if ((ret = av_interleaved_write_frame(oc, &pkt)) < 0) {
+                rev = ENM4A_FFMPEG_ERR;
+                goto end;
+            }
+            av_packet_unref(&pkt);
+        }
+    }
+    char cn_img = has_img && !img_extra_file, first_pkt = 1;
+    while (1) {
+        AVStream* is = NULL, * os = NULL;
+        if ((ret = av_read_frame(ic, &pkt)) < 0) {
+            if (ret == AVERROR_EOF) break;
+            rev = ENM4A_FFMPEG_ERR;
+            goto end;
+        }
+        if (pkt.data == NULL) break;
+        is = ic->streams[pkt.stream_index];
+        if (pkt.stream_index != audio_stream_index) {
+            if (!cn_img || pkt.stream_index != img_stream_index) {
+                av_packet_unref(&pkt);
+                continue;
+            }
+        }
+        unsigned int ind = pkt.stream_index == audio_stream_index ? audio_dest_index : img_dest_index;
+        os = oc->streams[ind];
+        if (args.level >= ENM4A_LOG_TRACE) {
+            log_packet(ic, &pkt, "in");
+        }
+        pkt.pts = av_rescale_q_rnd(pkt.pts, is->time_base, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
+        pkt.dts = av_rescale_q_rnd(pkt.dts, is->time_base, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
+        pkt.duration = av_rescale_q(pkt.duration, is->time_base, os->time_base);
+        pkt.pos = -1;
+        pkt.stream_index = ind;
+        if (args.level >= ENM4A_LOG_TRACE) {
+            log_packet(oc, &pkt, "out");
+        }
+        if ((ret = av_interleaved_write_frame(oc, &pkt)) < 0) {
+            rev = ENM4A_FFMPEG_ERR;
+            goto end;
+        }
+        av_packet_unref(&pkt);
+    }
+    av_write_trailer(oc);
 end:
     if (oc) {
         if (!(oc->oformat->flags & AVFMT_NOFILE)) avio_closep(&oc->pb);
@@ -261,6 +354,8 @@ const char* enm4a_error_msg(ENM4A_ERROR err) {
         return "Output file already exists, and overwrite is false";
     case ENM4A_ERR_REMOVE_FILE:
         return "Can not remove existed output file";
+    case ENM4A_ERR_OPEN_FILE:
+        return "Can not open output file";
     default:
         return "Unknown error";
     }

@@ -36,7 +36,9 @@ Options:\n\
         --album_artist <name>   Specify album artist.\n\
     -d, --disc <num>        Specify disc number.\n\
     -T, --track <track>     Specify track number.\n\
-    -D, --date <date>       Specify release date/year.\n");
+    -D, --date <date>       Specify release date/year.\n\
+    -y, --yes               Overwrite file if output file is already existed.\n\
+    -n, --no                Don't overwrite file if output file is already existed.\n");
 }
 
 #define ENM4A_TRACE 129
@@ -77,10 +79,12 @@ int main(int argc, char* argv[]) {
         {"disc", 1, nullptr, 'd'},
         {"track", 1, nullptr, 'T'},
         {"date", 1, nullptr, 'D'},
+        {"yes", 0, nullptr, 'y'},
+        {"no", 0, nullptr, 'n'},
         nullptr,
     };
     int c;
-    const char* shortopts = "-ho:vd:t:c:a:A:T:D:";
+    const char* shortopts = "-ho:vd:t:c:a:A:T:D:yn";
     std::string output = "";
     std::string input = "";
     ENM4A_LOG level = ENM4A_LOG_INFO;
@@ -92,6 +96,7 @@ int main(int argc, char* argv[]) {
     std::string disc = "";
     std::string track = "";
     std::string date = "";
+    ENM4A_OVERWRITE overwrite = ENM4A_OVERWRITE_ASK;
     while ((c = getopt_long(argc, argv, shortopts, opts, nullptr)) != -1) {
         switch (c) {
         case 'h':
@@ -136,6 +141,12 @@ int main(int argc, char* argv[]) {
         case 'D':
             date = optarg;
             break;
+        case 'y':
+            overwrite = ENM4A_OVERWRITE_YES;
+            break;
+        case 'n':
+            overwrite = ENM4A_OVERWRITE_NO;
+            break;
         case 1:
             if (!input.length()) {
                 input = optarg;
@@ -168,6 +179,7 @@ int main(int argc, char* argv[]) {
     ENM4A_ARGS arg;
     memset(&arg, 0, sizeof(ENM4A_ARGS));
     arg.level = level;
+    arg.overwrite = overwrite;
     if (output.length()) {
         if (!cpp2c::string2char(output, arg.output)) return 1;
     }
@@ -195,7 +207,7 @@ int main(int argc, char* argv[]) {
     if (arg.disc) free(arg.disc);
     if (arg.track) free(arg.track);
     if (arg.date) free(arg.date);
-    if (re != ENM4A_OK) {
+    if (re != ENM4A_OK && re != ENM4A_FILE_EXISTS) {
         if (re != ENM4A_FFMPEG_ERR) {
             printf("%s\n", enm4a_error_msg(re));
         }
