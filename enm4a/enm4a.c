@@ -352,7 +352,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
         pkt.dts = av_rescale_q_rnd(pkt.dts, is->time_base, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
         if (pkt.stream_index == audio_stream_index) {
             if (audio_dts > pkt.dts) {
-                av_log(NULL, AV_LOG_WARNING, "Non-monotonous DTS in output stream 0:%u; previous: %lli, current: %lli; changing to %lli. This may result in incorrect timestamps in the output file.\n", ind, audio_dts, pkt.dts, audio_dts + 1);
+                av_log(NULL, AV_LOG_WARNING, "Non-monotonous DTS in output stream 0:%u; previous: %"PRId64", current: %"PRId64"; changing to %"PRId64". This may result in incorrect timestamps in the output file.\n", ind, audio_dts, pkt.dts, audio_dts + 1);
                 pkt.dts = audio_dts + 1;
                 pkt.pts = audio_dts + 1;
             }
