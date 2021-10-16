@@ -44,6 +44,9 @@ int ffconcat(std::string out, std::list<std::string> inp, ffconcath config) {
     AVFormatContext *oc = nullptr, *ic = nullptr;
     int ret, rev = 0;
     AVPacket pkt;
+    int64_t duration = 0;
+    int map_size = ic->nb_streams, map_index = 0;
+    int* map = (int*)calloc(map_size, sizeof(int));
     avformat_alloc_output_context2(&oc, nullptr, nullptr, out.c_str());
     if (oc == nullptr) {
         printf("Warning: %s\n", "Can not detect format from output file extension. Assume to use MPEG.");
@@ -67,8 +70,6 @@ int ffconcat(std::string out, std::list<std::string> inp, ffconcath config) {
         goto end;
     }
     av_dump_format(ic, 0, (*i).c_str(), 0);
-    int map_size = ic->nb_streams, map_index = 0;
-    int* map = (int*) calloc(map_size, sizeof(int));
     if (!map) {
         printf("%s\n", "Can not allocate memory.");
         rev = 4;
@@ -115,7 +116,6 @@ int ffconcat(std::string out, std::list<std::string> inp, ffconcath config) {
         rev = 6;
         goto end;
     }
-    int64_t duration = 0;
     do {
         if (i != inp.begin()) {
             if ((ret = avformat_open_input(&ic, (*i).c_str(), nullptr, nullptr)) != 0) {
