@@ -44,6 +44,9 @@ typedef struct ENM4A_ARGS {
 
 ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args);
 const char* enm4a_error_msg(ENM4A_ERROR err);
+void enm4a_print_ffmpeg_version();
+void enm4a_print_ffmpeg_configuration();
+void enm4a_print_ffmpeg_license();
 #ifdef __cplusplus
 }
 #endif

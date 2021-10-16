@@ -1,6 +1,7 @@
 #if HAVE_ENM4A_CONFIG_H
 #include "enm4a_config.h"
 #endif
+#include "enm4a_version.h"
 
 #include "getopt.h"
 #include "wchar_util.h"
@@ -20,7 +21,7 @@
 
 void print_help() {
     printf("%s", "Usage: enm4a [options] FILE\n\
-Convert to m4a file\n\
+Convert file to m4a file\n\
 \n\
 Options:\n\
     -h, --help              Print help message.\n\
@@ -38,7 +39,23 @@ Options:\n\
     -T, --track <track>     Specify track number.\n\
     -D, --date <date>       Specify release date/year.\n\
     -y, --yes               Overwrite file if output file is already existed.\n\
-    -n, --no                Don't overwrite file if output file is already existed.\n");
+    -n, --no                Don't overwrite file if output file is already existed.\n\
+    -V, --version           Print version.\n");
+}
+
+void print_version(bool verbose) {
+    printf("enm4a v%s Copyright (C) 2021  lifegpc\n\
+This program comes with ABSOLUTELY NO WARRANTY;\n\
+for details see <https://www.gnu.org/licenses/agpl-3.0.html>.\n\
+This is free software, and you are welcome to redistribute it\n\
+under certain conditions.\n", ENM4A_VERSION);
+    enm4a_print_ffmpeg_version();
+    if (verbose) {
+        enm4a_print_ffmpeg_configuration();
+        enm4a_print_ffmpeg_license();
+    } else {
+        printf("Add \"-v\" to see more inforamtion about ffmpeg library.\n");
+    }
 }
 
 #define ENM4A_TRACE 129
@@ -81,10 +98,11 @@ int main(int argc, char* argv[]) {
         {"date", 1, nullptr, 'D'},
         {"yes", 0, nullptr, 'y'},
         {"no", 0, nullptr, 'n'},
+        {"version", 0, nullptr, 'V'},
         nullptr,
     };
     int c;
-    const char* shortopts = "-ho:vd:t:c:a:A:T:D:yn";
+    const char* shortopts = "-ho:vd:t:c:a:A:T:D:ynV";
     std::string output = "";
     std::string input = "";
     ENM4A_LOG level = ENM4A_LOG_INFO;
@@ -97,6 +115,7 @@ int main(int argc, char* argv[]) {
     std::string track = "";
     std::string date = "";
     ENM4A_OVERWRITE overwrite = ENM4A_OVERWRITE_ASK;
+    bool printv = false;
     while ((c = getopt_long(argc, argv, shortopts, opts, nullptr)) != -1) {
         switch (c) {
         case 'h':
@@ -147,6 +166,9 @@ int main(int argc, char* argv[]) {
         case 'n':
             overwrite = ENM4A_OVERWRITE_NO;
             break;
+        case 'V':
+            printv = true;
+            break;
         case 1:
             if (!input.length()) {
                 input = optarg;
@@ -169,6 +191,10 @@ int main(int argc, char* argv[]) {
 #if _WIN32
     if (have_wargv) wchar_util::freeArgv(wargv, wargc);
 #endif
+    if (printv) {
+        print_version(level >= ENM4A_LOG_VERBOSE);
+        return 0;
+    }
     if (!input.length()) {
         printf("%s\n", "An input file is needed.");
         return 1;

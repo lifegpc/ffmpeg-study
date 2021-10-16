@@ -7,6 +7,7 @@ if (MSVC)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 
 find_package(AVFORMAT 59 REQUIRED)
 find_package(AVCODEC 59 REQUIRED)
@@ -17,9 +18,9 @@ include_directories(${AVFORMAT_INCLUDE_DIRS})
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
 include(GNUInstallDirs)
+include(ENM4A_VERSION)
 if (WIN32)
     check_symbol_exists(printf_s "stdio.h" HAVE_PRINTF_S)
-    check_symbol_exists(sscanf_s "stdio.h" HAVE_SSCANF_S)
 endif()
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/enm4a_config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/enm4a_config.h")
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
@@ -36,7 +37,16 @@ if (NOT TARGET utils)
     include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../utils")
 endif()
 
-add_executable(enm4a enm4a.h enm4a.c main.cpp)
+add_custom_target(enm4a_version
+    ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/ENM4A_VERSION.cmake"
+)
+
+if (WIN32)
+    set(ENM4A_RC "${CMAKE_CURRENT_BINARY_DIR}/enm4a.rc")
+endif()
+
+add_executable(enm4a enm4a.h enm4a.c main.cpp ${ENM4A_RC})
+add_dependencies(enm4a enm4a_version)
 target_compile_definitions(enm4a PRIVATE HAVE_ENM4A_CONFIG_H)
 if (TARGET getopt)
     target_link_libraries(enm4a getopt)

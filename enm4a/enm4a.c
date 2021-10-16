@@ -11,6 +11,7 @@
 
 #include "cstr_util.h"
 #include "cfileop.h"
+#include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libavutil/log.h"
 #include "libavutil/dict.h"
@@ -18,9 +19,6 @@
 
 #if HAVE_PRINTF_S
 #define printf printf_s
-#endif
-#ifdef HAVE_SSCANF_S
-#define sscanf sscanf_s
 #endif
 
 void log_packet(const AVFormatContext* fmt_ctx, const AVPacket* pkt, const char* tag) {
@@ -369,4 +367,25 @@ const char* enm4a_error_msg(ENM4A_ERROR err) {
     default:
         return "Unknown error";
     }
+}
+
+void enm4a_print_ffmpeg_version() {
+    unsigned int v = avformat_version();
+    printf("libavformat %u.%u.%u\n", v >> 16, (v & 0xff00) >> 8, v & 0xff);
+    v = avcodec_version();
+    printf("libavcodec %u.%u.%u\n", v >> 16, (v & 0xff00) >> 8, v & 0xff);
+    v = avutil_version();
+    printf("libavutil %u.%u.%u\n", v >> 16, (v & 0xff00) >> 8, v & 0xff);
+}
+
+void enm4a_print_ffmpeg_configuration() {
+    printf("libavformat configuration: %s\n", avformat_configuration());
+    printf("libavcodec configuration: %s\n", avcodec_configuration());
+    printf("libavutil configuration: %s\n", avutil_configuration());
+}
+
+void enm4a_print_ffmpeg_license() {
+    printf("libavformat licnese: %s\n", avformat_license());
+    printf("libavcodec licnese: %s\n", avcodec_license());
+    printf("libavutil licnese: %s\n", avutil_license());
 }
