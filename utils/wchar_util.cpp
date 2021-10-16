@@ -1,6 +1,7 @@
 #include "wchar_util.h"
 #include "list_pointer.h"
 #include <malloc.h>
+#include <string.h>
 
 #if _WIN32
 #include <Windows.h>
