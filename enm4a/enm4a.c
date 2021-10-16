@@ -42,7 +42,7 @@ void log_packet(const AVFormatContext* fmt_ctx, const AVPacket* pkt, const char*
 
 #define LOG_PROGRESS_BUFSIZE 256
 
-void log_progress(const AVFormatContext* ctx) {
+void log_progress(const AVFormatContext* ctx, int64_t pts, AVRational base) {
     int64_t total_size;
     total_size = avio_size(ctx->pb);
     if (total_size <= 0) {
@@ -56,6 +56,21 @@ void log_progress(const AVFormatContext* ctx) {
         c = snprintf(nbuf, len, "size=N/A");
     } else {
         c = snprintf(nbuf, len, "size=%6.0fKiB", total_size / 1024.0);
+    }
+    len -= c;
+    nbuf += c;
+    if (pts < 0) {
+        c = snprintf(nbuf, len, "\ttime=N/A");
+    } else {
+        int bq = base.den / base.num;
+        int secs = FFABS(pts) / bq;
+        int us = FFABS(pts) % bq;
+        int mins = secs / 60;
+        secs %= 60;
+        int hours = mins / 60;
+        mins %= 60;
+        const char* hours_sign = (pts < 0) ? "-" : "";
+        c = snprintf(nbuf, len, "\ttime=%s%02d:%02d:%02d.%02d", hours_sign, hours, mins, secs, (us * 100) / bq);
     }
     len -= c;
     nbuf += c;
@@ -369,21 +384,21 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
             GetSystemTimePreciseAsFileTime(&tnow);
             size_t ts = ft2ts(tnow) - ft2ts(pgtime);
             if (ts >= 2000000ull) {
-                log_progress(oc);
+                log_progress(oc, pkt.pts, os->time_base);
                 pgtime = tnow;
             }
 #elif defined(HAVE_CLOCK_GETTIME)
             if (!clock_gettime(CLOCK_REALTIME, &tnow)) {
                 time_t ts = ts2ts(tnow) - ts2ts(pgtime);
                 if (ts >= 200000000ll) {
-                    log_progress(oc);
+                    log_progress(oc, pkt.pts, os->time_base);
                     pgtime = tnow;
                 }
             }
 #else
             tnow = time(NULL);
             if (pgtime < tnow) {
-                log_progress(oc);
+                log_progress(oc, pkt.pts, os->time_base);
                 pgtime = tnow;
             }
 #endif
