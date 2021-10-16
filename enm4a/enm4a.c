@@ -8,6 +8,7 @@
 #include <string.h>
 #include <malloc.h>
 #include <stdio.h>
+#include <time.h>
 
 #include "cstr_util.h"
 #include "cfileop.h"
@@ -17,8 +18,17 @@
 #include "libavutil/dict.h"
 #include "libavutil/timestamp.h"
 
+#ifdef _WIN32
+#include <Windows.h>
+#define ft2ts(t) (((size_t)t.dwHighDateTime << 32) | (size_t)t.dwLowDateTime)
+#endif
+
 #if HAVE_PRINTF_S
 #define printf printf_s
+#endif
+
+#if HAVE_CLOCK_GETTIME
+#define ts2ts(t) (t.tv_sec * 1000000000ll + t.tv_nsec)
 #endif
 
 void log_packet(const AVFormatContext* fmt_ctx, const AVPacket* pkt, const char* tag) {
@@ -28,6 +38,29 @@ void log_packet(const AVFormatContext* fmt_ctx, const AVPacket* pkt, const char*
         av_ts2str(pkt->dts), av_ts2timestr(pkt->dts, time_base),
         av_ts2str(pkt->duration), av_ts2timestr(pkt->duration, time_base),
         pkt->stream_index);
+}
+
+#define LOG_PROGRESS_BUFSIZE 256
+
+void log_progress(const AVFormatContext* ctx) {
+    int64_t total_size;
+    total_size = avio_size(ctx->pb);
+    if (total_size <= 0) {
+        total_size = avio_tell(ctx->pb);
+    }
+    char buf[LOG_PROGRESS_BUFSIZE];
+    char* nbuf = buf;
+    size_t len = LOG_PROGRESS_BUFSIZE;
+    int c = 0;
+    if (total_size <= 0) {
+        c = snprintf(nbuf, len, "size=N/A");
+    } else {
+        c = snprintf(nbuf, len, "size=%6.0fKiB", total_size / 1024.0);
+    }
+    len -= c;
+    nbuf += c;
+    printf("\r%s", buf);
+    fflush(stdout);
 }
 
 void set_ctx_metadata(AVFormatContext *ctx, const AVFormatContext *in, const char* key, const char* argu) {
@@ -64,6 +97,13 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
     unsigned int img_stream_index = 0, audio_stream_index = 0, img_dest_index = 0, audio_dest_index = 0, map_index = 0;
     AVPacket pkt;
     int64_t audio_dts;
+#ifdef _WIN32
+    FILETIME pgtime = { 0, 0 }, tnow = { 0, 0 };
+#elif defined(HAVE_CLOCK_GETTIME)
+    struct timespec pgtime = { LLONG_MIN, 0 }, tnow = { 0, 0 };
+#else
+    time_t pgtime = LLONG_MIN, tnow = 0;
+#endif
     if ((ret = avformat_open_input(&ic, input, NULL, NULL)) != 0) {
         rev = ENM4A_FFMPEG_ERR;
         goto end;
@@ -311,7 +351,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
         pkt.pts = av_rescale_q_rnd(pkt.pts, is->time_base, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
         pkt.dts = av_rescale_q_rnd(pkt.dts, is->time_base, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
         if (pkt.stream_index == audio_stream_index) {
-            if (audio_dts != INT64_MIN && audio_dts > pkt.dts) {
+            if (audio_dts > pkt.dts) {
                 av_log(NULL, AV_LOG_WARNING, "Non-monotonous DTS in output stream 0:%u; previous: %lli, current: %lli; changing to %lli. This may result in incorrect timestamps in the output file.\n", ind, audio_dts, pkt.dts, audio_dts + 1);
                 pkt.dts = audio_dts + 1;
                 pkt.pts = audio_dts + 1;
@@ -323,6 +363,30 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
         pkt.stream_index = ind;
         if (args.level >= ENM4A_LOG_TRACE) {
             log_packet(oc, &pkt, "out");
+        }
+        if (args.level <= ENM4A_LOG_DEBUG) {
+#ifdef _WIN32
+            GetSystemTimePreciseAsFileTime(&tnow);
+            size_t ts = ft2ts(tnow) - ft2ts(pgtime);
+            if (ts >= 2000000ull) {
+                log_progress(oc);
+                pgtime = tnow;
+            }
+#elif defined(HAVE_CLOCK_GETTIME)
+            if (!clock_gettime(CLOCK_REALTIME, &tnow)) {
+                time_t ts = ts2ts(tnow) - ts2ts(pgtime);
+                if (ts >= 200000000ll) {
+                    log_progress(oc);
+                    pgtime = tnow;
+                }
+            }
+#else
+            tnow = time(NULL);
+            if (pgtime < tnow) {
+                log_progress(oc);
+                pgtime = tnow;
+            }
+#endif
         }
         if ((ret = av_interleaved_write_frame(oc, &pkt)) < 0) {
             rev = ENM4A_FFMPEG_ERR;

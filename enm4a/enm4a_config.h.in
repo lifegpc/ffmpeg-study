@@ -1,2 +1,3 @@
 #pragma once
 #cmakedefine HAVE_PRINTF_S @HAVE_PRINTF_S@
+#cmakedefine HAVE_CLOCK_GETTIME @HAVE_CLOCK_GETTIME@
