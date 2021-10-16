@@ -1,26 +1,20 @@
 find_package(PkgConfig)
 if (PkgConfig_FOUND)
-    pkg_check_modules(PC_AVUTIL QUIET libavutil)
+    pkg_check_modules(PC_AVUTIL QUIET IMPORTED_TARGET GLOBAL libavutil)
 endif()
 
 if (PC_AVUTIL_FOUND)
     set(AVUTIL_FOUND TRUE)
     set(AVUTIL_VERSION ${PC_AVUTIL_VERSION})
     set(AVUTIL_VERSION_STRING ${PC_AVUTIL_STRING})
+    set(AVUTIL_LIBRARYS ${PC_AVUTIL_LIBRARIES})
     if (USE_STATIC_LIBS)
-        set(AVUTIL_LIBRARYS ${PC_AVUTIL_STATIC_LNIK_LIBRARIES})
         set(AVUTIL_INCLUDE_DIRS ${PC_AVUTIL_STATIC_INCLUDE_DIRS})
     else()
-        set(AVUTIL_LIBRARYS ${PC_AVUTIL_LINK_LIBRARIES})
         set(AVUTIL_INCLUDE_DIRS ${PC_AVUTIL_INCLUDE_DIRS})
     endif()
     if (NOT TARGET AVUTIL::AVUTIL)
-        add_library(AVUTIL::AVUTIL UNKNOWN IMPORTED)
-        set_target_properties(AVUTIL::AVUTIL PROPERTIES
-            IMPORTED_LOCATION "${AVUTIL_LIBRARYS}"
-            INTERFACE_COMPILE_OPTIONS "${PC_AVUTIL_CFLAGS}"
-            INTERFACE_INCLUDE_DIRECTORIES "${AVUTIL_INCLUDE_DIRS}"
-        )
+        add_library(AVUTIL::AVUTIL ALIAS PkgConfig::PC_AVUTIL)
     endif()
 else()
     message(FATAL_ERROR "failed.")
