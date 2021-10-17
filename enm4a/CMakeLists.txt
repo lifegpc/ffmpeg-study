@@ -47,7 +47,7 @@ if (WIN32)
     set(ENM4A_RC "${CMAKE_CURRENT_BINARY_DIR}/enm4a.rc")
 endif()
 
-add_executable(enm4a enm4a.h enm4a.c main.cpp ${ENM4A_RC})
+add_executable(enm4a enm4a.h enm4a.c enm4a_http_header.h enm4a_http_header.c main.cpp ${ENM4A_RC})
 add_dependencies(enm4a enm4a_version)
 target_compile_definitions(enm4a PRIVATE HAVE_ENM4A_CONFIG_H)
 if (TARGET getopt)

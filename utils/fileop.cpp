@@ -92,6 +92,9 @@ bool fileop::remove(std::string fn, bool print_error) {
 }
 
 std::string fileop::dirname(std::string fn) {
+    if (fn.find_first_of("://") != std::string::npos) {
+        return "";
+    }
     auto i = fn.find_last_of('/');
     auto i2 = fn.find_last_of('\\');
     i = (i == std::string::npos || (i2 != std::string::npos && i2 > i)) ? i2 : i;

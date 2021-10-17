@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <malloc.h>
+#include <list>
 #include "enm4a.h"
 #include "cpp2c.h"
 
@@ -40,7 +41,8 @@ Options:\n\
     -D, --date <date>       Specify release date/year.\n\
     -y, --yes               Overwrite file if output file is already existed.\n\
     -n, --no                Don't overwrite file if output file is already existed.\n\
-    -V, --version           Print version.\n");
+    -V, --version           Print version.\n\
+    -H, --header            Add custom HTTP Header.\n");
 }
 
 void print_version(bool verbose) {
@@ -58,6 +60,16 @@ under certain conditions.\n", ENM4A_VERSION);
         printf("Add \"-v\" to see more inforamtion about ffmpeg library.\n");
     }
 }
+
+class Enm4aHTTPHeaderList : public std::list<ENM4A_HTTP_HEADER*> {
+public:
+    ~Enm4aHTTPHeaderList() {
+        for (auto i = this->begin(); i != this->end(); i++) {
+            enm4a_free_http_header(*i);
+        }
+        this->clear();
+    }
+};
 
 #define ENM4A_TRACE 129
 #define ENM4A_ALBUM_ARTIST 130
@@ -100,10 +112,11 @@ int main(int argc, char* argv[]) {
         {"yes", 0, nullptr, 'y'},
         {"no", 0, nullptr, 'n'},
         {"version", 0, nullptr, 'V'},
+        {"header", 1, nullptr, 'H'},
         nullptr,
     };
     int c;
-    const char* shortopts = "-ho:vd:t:c:a:A:T:D:ynV";
+    const char* shortopts = "-ho:vd:t:c:a:A:T:D:ynVH:";
     std::string output = "";
     std::string input = "";
     ENM4A_LOG level = ENM4A_LOG_INFO;
@@ -117,6 +130,9 @@ int main(int argc, char* argv[]) {
     std::string date = "";
     ENM4A_OVERWRITE overwrite = ENM4A_OVERWRITE_ASK;
     bool printv = false;
+    Enm4aHTTPHeaderList headers;
+    ENM4A_ERROR err = ENM4A_OK;
+    ENM4A_HTTP_HEADER* header = NULL;
     while ((c = getopt_long(argc, argv, shortopts, opts, nullptr)) != -1) {
         switch (c) {
         case 'h':
@@ -170,6 +186,18 @@ int main(int argc, char* argv[]) {
         case 'V':
             printv = true;
             break;
+        case 'H':
+            header = enm4a_parse_http_header(optarg, &err);
+            if (header) {
+                headers.push_back(header);
+            } else {
+                printf("Can not parse HTTP Header: %s\n", enm4a_error_msg(err));
+#if _WIN32
+                if (have_wargv) wchar_util::freeArgv(wargv, wargc);
+#endif
+                return 1;
+            }
+            break;
         case 1:
             if (!input.length()) {
                 input = optarg;
@@ -220,6 +248,18 @@ int main(int argc, char* argv[]) {
     if (disc.length() && !cpp2c::string2char(disc, arg.disc)) return 1;
     if (track.length() && !cpp2c::string2char(track, arg.track)) return 1;
     if (date.length() && !cpp2c::string2char(date, arg.date)) return 1;
+    if (headers.size()) {
+        arg.http_header_size = headers.size();
+        arg.http_headers = (ENM4A_HTTP_HEADER**)malloc(arg.http_header_size * sizeof(void*));
+        if (!arg.http_headers) {
+            printf("Out of memory!\n");
+            return 1;
+        }
+        size_t j = 0;
+        for (auto i = headers.begin(); i != headers.end(); i++) {
+            arg.http_headers[j++] = *i;
+        }
+    }
     ENM4A_ERROR re = encode_m4a(input.c_str(), arg);
     if (arg.output) {
         free(arg.output);
@@ -234,6 +274,7 @@ int main(int argc, char* argv[]) {
     if (arg.disc) free(arg.disc);
     if (arg.track) free(arg.track);
     if (arg.date) free(arg.date);
+    if (arg.http_headers) free(arg.http_headers);
     if (re != ENM4A_OK && re != ENM4A_FILE_EXISTS) {
         if (re != ENM4A_FFMPEG_ERR) {
             printf("%s\n", enm4a_error_msg(re));

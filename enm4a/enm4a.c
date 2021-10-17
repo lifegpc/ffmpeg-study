@@ -3,6 +3,7 @@
 #endif
 
 #include "enm4a.h"
+#include "enm4a_http_header.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -107,11 +108,12 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
     AVFormatContext* ic = NULL, * oc = NULL, * imgc = NULL;
     int ret = 0;
     ENM4A_ERROR rev = ENM4A_OK;
-    char* title = NULL, * out = NULL;
+    char* title = NULL, * out = NULL, * headers = NULL;
     char has_img = 0, img_extra_file = 0, has_audio = 0;
     unsigned int img_stream_index = 0, audio_stream_index = 0, img_dest_index = 0, audio_dest_index = 0, map_index = 0;
     AVPacket pkt;
     int64_t audio_dts;
+    AVDictionary* demux_option = NULL;
 #ifdef _WIN32
     FILETIME pgtime = { 0, 0 }, tnow = { 0, 0 };
 #elif defined(HAVE_CLOCK_GETTIME)
@@ -119,6 +121,18 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
 #else
     time_t pgtime = LLONG_MIN, tnow = 0;
 #endif
+    if (args.http_headers && args.http_header_size) {
+        ENM4A_ERROR err;
+        headers = enm4a_generate_http_header(args.http_headers, args.http_header_size, &err);
+        if (!headers) {
+            rev = err;
+            goto end;
+        }
+        if ((ret = av_dict_set(&demux_option, "headers", headers, 0)) < 0) {
+            rev = ENM4A_FFMPEG_ERR;
+            goto end;
+        }
+    }
     if ((ret = avformat_open_input(&ic, input, NULL, NULL)) != 0) {
         rev = ENM4A_FFMPEG_ERR;
         goto end;
@@ -446,6 +460,10 @@ end:
     }
     if (title) free(title);
     if (out) free(out);
+    if (headers) free(headers);
+    if (demux_option) {
+        av_dict_free(&demux_option);
+    }
     return rev;
 }
 
@@ -464,8 +482,14 @@ const char* enm4a_error_msg(ENM4A_ERROR err) {
         return "Output file already exists, and overwrite is false";
     case ENM4A_ERR_REMOVE_FILE:
         return "Can not remove existed output file";
+    case ENM4A_NO_AUDIO:
+        return "Can not find audio stream";
     case ENM4A_ERR_OPEN_FILE:
         return "Can not open output file";
+    case ENM4A_HTTP_HEADER_EMPTY_KEY:
+        return "The key of HTTP HEADER is empty";
+    case ENM4A_HTTP_HEADER_NO_COLON:
+        return "No colon in HTTP HEADER";
     default:
         return "Unknown error";
     }
