@@ -42,7 +42,7 @@ Options:\n\
     -y, --yes               Overwrite file if output file is already existed.\n\
     -n, --no                Don't overwrite file if output file is already existed.\n\
     -V, --version           Print version.\n\
-    -H, --header            Add custom HTTP Header.\n");
+    -H, --header <header>   Add custom HTTP Header.\n");
 }
 
 void print_version(bool verbose) {
