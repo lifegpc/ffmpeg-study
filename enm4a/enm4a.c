@@ -133,7 +133,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
             goto end;
         }
     }
-    if ((ret = avformat_open_input(&ic, input, NULL, NULL)) != 0) {
+    if ((ret = avformat_open_input(&ic, input, NULL, &demux_option)) != 0) {
         rev = ENM4A_FFMPEG_ERR;
         goto end;
     }
