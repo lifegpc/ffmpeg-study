@@ -26,7 +26,7 @@ Convert file to m4a file\n\
 Options:\n\
     -h, --help              Print help message.\n\
     -o, --output <FILE>     Specifiy output file location. Default output location: <title>.m4a.\n\
-                            If title is not found, use \"a\" instead.\n\
+                            If title is not found, will use input filename instead.\n\
     -v, --verbose           Enable verbose logging.\n\
         --debug             Enable debug logging.\n\
         --trace             Enable trace logging.\n\
@@ -45,6 +45,7 @@ Options:\n\
 
 void print_version(bool verbose) {
     printf("enm4a v%s Copyright (C) 2021  lifegpc\n\
+Source code: https://github.com/lifegpc/ffmpeg-study/tree/master/enm4a \n\
 This program comes with ABSOLUTELY NO WARRANTY;\n\
 for details see <https://www.gnu.org/licenses/agpl-3.0.html>.\n\
 This is free software, and you are welcome to redistribute it\n\

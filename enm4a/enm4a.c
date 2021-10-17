@@ -178,13 +178,16 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
                 printf("Get output filename from title: %s\n", out);
             }
         } else {
-            out = malloc(6);
+            char* ext = strrchr(input, '.');
+            size_t le = (ext == NULL || !strncmp(ext, ".m4a", 4)) ? strlen(input) : ext - input;
+            out = malloc(le + 5);
             if (!out) {
                 rev = ENM4A_NO_MEMORY;
                 goto end;
             }
-            memcpy(out, "a.m4a", 5);
-            out[5] = 0;
+            memcpy(out, input, le);
+            memcpy(out + le, ".m4a", 4);
+            out[le + 4] = 0;
             if (args.level >= ENM4A_LOG_VERBOSE) {
                 printf("Use default output filename: %s\n", out);
             }
