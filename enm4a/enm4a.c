@@ -165,18 +165,38 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
     }
     if (!args.output || !strlen(args.output)) {
         if (title) {
-            size_t le = strlen(title);
-            out = malloc(le + 5);
-            if (!out) {
+            char* dir = fileop_dirname(input);
+            if (!dir) {
                 rev = ENM4A_NO_MEMORY;
                 goto end;
             }
-            memcpy(out, title, le);
-            memcpy(out + le, ".m4a", 4);
-            out[le + 4] = 0;
+            size_t dle = strlen(dir);
+            size_t le = strlen(title);
+            size_t nle = dle == 0 ? le + 4 : dle + 1 + le + 4;
+            out = malloc(nle + 1);
+            if (!out) {
+                free(dir);
+                rev = ENM4A_NO_MEMORY;
+                goto end;
+            }
+            if (dle == 0) {
+                memcpy(out, title, le);
+                memcpy(out + le, ".m4a", 4);
+            } else {
+                memcpy(out, dir, dle);
+#ifdef _WIN32
+                out[dle] = '\\';
+#else
+                out[dle] = '/';
+#endif
+                memcpy(out + dle + 1, title, le);
+                memcpy(out + nle - 4, ".m4a", 4);
+            }
+            out[nle] = 0;
             if (args.level >= ENM4A_LOG_VERBOSE) {
                 printf("Get output filename from title: %s\n", out);
             }
+            free(dir);
         } else {
             char* ext = strrchr(input, '.');
             size_t le = (ext == NULL || !strncmp(ext, ".m4a", 4)) ? strlen(input) : ext - input;

@@ -16,5 +16,11 @@ namespace fileop {
      * @returns true if successed
     */
     bool remove(std::string fn, bool print_error = false);
+    /**
+     * @brief Get directory name from path
+     * @param fn Path
+     * @returns Directory. If path does not contain a slash, will return "".
+    */
+    std::string dirname(std::string fn);
 }
 #endif

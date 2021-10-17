@@ -15,6 +15,12 @@ int fileop_exists(char* fn);
  * @returns 1 if successed otherwise 0
 */
 int fileop_remove(char* fn);
+/**
+ * @brief Get directory name from path
+ * @param fn Path
+ * @returns Directory. If path does not contain a slash, will return "". Need free memory by using free.
+*/
+char* fileop_dirname(const char* fn);
 #ifdef __cplusplus
 }
 #endif

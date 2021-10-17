@@ -90,3 +90,10 @@ bool fileop::remove(std::string fn, bool print_error) {
     }
     return !ret;
 }
+
+std::string fileop::dirname(std::string fn) {
+    auto i = fn.find_last_of('/');
+    auto i2 = fn.find_last_of('\\');
+    i = (i == std::string::npos || (i2 != std::string::npos && i2 > i)) ? i2 : i;
+    return i == std::string::npos ? "" : fn.substr(0, i);
+}
