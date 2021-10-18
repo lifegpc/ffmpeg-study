@@ -21,6 +21,19 @@ int fileop_remove(char* fn);
  * @returns Directory. If path does not contain a slash, will return "". Need free memory by using free.
 */
 char* fileop_dirname(const char* fn);
+/**
+ * @brief Detect if path is a url.
+ * @param fn Path
+ * @param re result
+ * @return 1 if successed otherwise 0
+*/
+int fileop_is_url(const char* fn, int* re);
+/**
+ * @brief Get file name from path
+ * @param fn Path
+ * @return File name. Need free memory by calling free.
+*/
+char* fileop_basename(const char* fn);
 #ifdef __cplusplus
 }
 #endif

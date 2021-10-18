@@ -179,17 +179,22 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
     }
     if (!args.output || !strlen(args.output)) {
         if (title) {
-            char* dir = fileop_dirname(input);
-            if (!dir) {
+            int is_url = 0;
+            if (!fileop_is_url(input, &is_url)) {
+                rev = ENM4A_NULL_POINTER;
+                goto end;
+            }
+            char* dir = !is_url ? fileop_dirname(input) : NULL;
+            if (!is_url && !dir) {
                 rev = ENM4A_NO_MEMORY;
                 goto end;
             }
-            size_t dle = strlen(dir);
+            size_t dle = dir ? strlen(dir) : 0;
             size_t le = strlen(title);
             size_t nle = dle == 0 ? le + 4 : dle + 1 + le + 4;
             out = malloc(nle + 1);
             if (!out) {
-                free(dir);
+                if (dir) free(dir);
                 rev = ENM4A_NO_MEMORY;
                 goto end;
             }
@@ -210,21 +215,45 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
             if (args.level >= ENM4A_LOG_VERBOSE) {
                 printf("Get output filename from title: %s\n", out);
             }
-            free(dir);
+            if (dir) free(dir);
         } else {
-            char* ext = strrchr(input, '.');
-            size_t le = (ext == NULL || !strncmp(ext, ".m4a", 4)) ? strlen(input) : ext - input;
+            char* bn = NULL;
+            int is_url = 0;
+            if (!fileop_is_url(input, &is_url)) {
+                rev = ENM4A_NULL_POINTER;
+                goto end;
+            }
+            char* ext = NULL;
+            size_t le = 0;
+            if (is_url) {
+                bn = fileop_basename(input);
+                if (!bn) {
+                    rev = ENM4A_NO_MEMORY;
+                    goto end;
+                }
+                ext = strrchr(bn, '.');
+                le = (ext == NULL || !strncmp(ext, ".m4a", 4)) ? strlen(bn) : ext - bn;
+            } else {
+                ext = strrchr(input, '.');
+                le = (ext == NULL || !strncmp(ext, ".m4a", 4)) ? strlen(input) : ext - input;
+            }
             out = malloc(le + 5);
             if (!out) {
+                if (bn) free(bn);
                 rev = ENM4A_NO_MEMORY;
                 goto end;
             }
-            memcpy(out, input, le);
+            if (is_url) {
+                memcpy(out, bn, le);
+            } else {
+                memcpy(out, input, le);
+            }
             memcpy(out + le, ".m4a", 4);
             out[le + 4] = 0;
             if (args.level >= ENM4A_LOG_VERBOSE) {
                 printf("Use default output filename: %s\n", out);
             }
+            if (bn) free(bn);
         }
     } else {
         int re = cstr_util_copy_str(&out, args.output);

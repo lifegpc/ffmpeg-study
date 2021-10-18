@@ -22,5 +22,17 @@ namespace fileop {
      * @returns Directory. If path does not contain a slash, will return "".
     */
     std::string dirname(std::string fn);
+    /**
+     * @brief Detect if path is a url.
+     * @param fn Path
+     * @return true if is a url.
+    */
+    bool is_url(std::string fn);
+    /**
+     * @brief Get file name from path
+     * @param fn Path
+     * @return File name.
+    */
+    std::string basename(std::string fn);
 }
 #endif

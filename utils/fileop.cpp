@@ -92,11 +92,37 @@ bool fileop::remove(std::string fn, bool print_error) {
 }
 
 std::string fileop::dirname(std::string fn) {
-    if (fn.find_first_of("://") != std::string::npos) {
-        return "";
-    }
     auto i = fn.find_last_of('/');
     auto i2 = fn.find_last_of('\\');
     i = (i == std::string::npos || (i2 != std::string::npos && i2 > i)) ? i2 : i;
     return i == std::string::npos ? "" : fn.substr(0, i);
+}
+
+bool fileop::is_url(std::string fn) {
+    return fn.find("://") != std::string::npos;
+}
+
+std::string fileop::basename(std::string fn) {
+    if (!is_url(fn)) {
+        auto i = fn.find_last_of('/');
+        auto i2 = fn.find_last_of('\\');
+        i = (i == std::string::npos || (i2 != std::string::npos && i2 > i)) ? i2 : i;
+        return i == std::string::npos ? fn : fn.substr(i + 1, fn.length() - i - 1);
+    } else {
+        auto iq = fn.find_first_of('?');
+        auto iq2 = fn.find_first_of('#');
+        iq = (iq == std::string::npos || (iq2 != std::string::npos && iq2 < iq)) ? iq2 : iq;
+        auto i = fn.find_last_of('/', iq);
+        auto i2 = fn.find_last_of('\\', iq);
+        i = (i == std::string::npos || (i2 != std::string::npos && i2 > i)) ? i2 : i;
+        if (i == std::string::npos && iq == std::string::npos) {
+            return fn;
+        } else if (i == std::string::npos) {
+            return fn.substr(0, iq);
+        } else if (iq == std::string::npos) {
+            return fn.substr(i + 1, fn.length() - i - 1);
+        } else {
+            return fn.substr(i + 1, iq - i - 1);
+        }
+    }
 }
