@@ -17,6 +17,11 @@ typedef enum ENM4A_ERROR {
     ENM4A_ERR_OPEN_FILE,
     ENM4A_HTTP_HEADER_EMPTY_KEY,
     ENM4A_HTTP_HEADER_NO_COLON,
+    ENM4A_NO_DECODER,
+    ENM4A_NO_ENCODER,
+    ENM4A_INVALID_DEFUALE_SAMPLE_RATE,
+    ENM4A_INVALID_SAMPLE_RATE,
+    ENM4A_FIFO_WRITE_ERR,
 } ENM4A_ERROR;
 
 typedef enum ENM4A_LOG {
@@ -34,6 +39,7 @@ typedef enum ENM4A_OVERWRITE {
 
 typedef struct ENM4A_HTTP_HEADER ENM4A_HTTP_HEADER;
 
+/// Call init_enm4a_args to initialize
 typedef struct ENM4A_ARGS {
     ENM4A_LOG level;
     ENM4A_OVERWRITE overwrite;
@@ -50,8 +56,20 @@ typedef struct ENM4A_ARGS {
     ENM4A_HTTP_HEADER** http_headers;
     /// The length of the list of HTTP headers
     size_t http_header_size;
+    int default_sample_rate;
+    int* sample_rate;
+    /// Target bitrate. Used when need encoding.
+    size_t bitrate;
 } ENM4A_ARGS;
 
+/**
+ * @brief Check sample rate is supported by AAC encoder
+ * @param sample_rate Sample rate
+ * @param result Result. 0 if not supported.
+ * @return ENM4A_OK if successed. If error occured. result will not set
+*/
+ENM4A_ERROR enm4a_is_supported_sample_rates(int sample_rate, int* result);
+void init_enm4a_args(ENM4A_ARGS* args);
 ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args);
 const char* enm4a_error_msg(ENM4A_ERROR err);
 void enm4a_print_ffmpeg_version();

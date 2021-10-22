@@ -18,6 +18,9 @@
 #include "libavutil/log.h"
 #include "libavutil/dict.h"
 #include "libavutil/timestamp.h"
+#include "libavutil/audio_fifo.h"
+#include "libavutil/channel_layout.h"
+#include "libswresample/swresample.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -31,6 +34,48 @@
 #if HAVE_CLOCK_GETTIME
 #define ts2ts(t) (t.tv_sec * 1000000000ll + t.tv_nsec)
 #endif
+
+ENM4A_ERROR enm4a_is_supported_sample_rates(int sample_rate, int* result) {
+    if (!result) return ENM4A_NULL_POINTER;
+    const AVCodec* c = avcodec_find_encoder(AV_CODEC_ID_AAC);
+    if (!c) return ENM4A_NO_ENCODER;
+    int i = 0;
+    while (c->supported_samplerates[i] != 0) {
+        if (sample_rate == c->supported_samplerates[i]) {
+            *result = 1;
+            return ENM4A_OK;
+        }
+        i++;
+    }
+    *result = 0;
+    return ENM4A_OK;
+}
+
+void init_enm4a_args(ENM4A_ARGS* args) {
+    if (!args) return;
+    memset(args, 0, sizeof(ENM4A_ARGS));
+    args->default_sample_rate = 48000;
+    args->bitrate = 320 * 1024;
+}
+
+void set_audio_samplerate(const AVCodecContext* in, AVCodecContext* out, const AVCodec* oc, int default_sample_rate, ENM4A_ERROR* err) {
+    if (!in || !out || !oc) {
+        if (err) *err = ENM4A_NULL_POINTER;
+        return;
+    }
+    int sr = in->sample_rate;
+    int i = 0;
+    while (oc->supported_samplerates[i] != 0) {
+        if (sr == oc->supported_samplerates[i]) {
+            out->sample_rate = sr;
+            if (err) *err = ENM4A_OK;
+            return;
+        }
+        i++;
+    }
+    out->sample_rate = default_sample_rate;
+    if (err) *err = ENM4A_OK;
+}
 
 void log_packet(const AVFormatContext* fmt_ctx, const AVPacket* pkt, const char* tag) {
     AVRational* time_base = &fmt_ctx->streams[pkt->stream_index]->time_base;
@@ -75,7 +120,7 @@ void log_progress(const AVFormatContext* ctx, int64_t pts, AVRational base) {
     }
     len -= c;
     nbuf += c;
-    printf("\r%s", buf);
+    printf("%s\r", buf);
     fflush(stdout);
 }
 
@@ -92,6 +137,84 @@ void set_ctx_metadata(AVFormatContext *ctx, const AVFormatContext *in, const cha
     }
 }
 
+ENM4A_ERROR convert_samples_and_add_to_fifo(int* ret, AVCodecContext* out, SwrContext* sw, AVFrame* frame, AVAudioFifo* fifo) {
+    if (!ret || !out || !sw || !frame || !fifo) return ENM4A_NULL_POINTER;
+    uint8_t** converted_input_samples = NULL;
+    ENM4A_ERROR re = ENM4A_OK;
+    if (!(converted_input_samples = malloc(sizeof(void*) * out->channels))) {
+        re = ENM4A_NO_MEMORY;
+        goto end;
+    }
+    if ((*ret = av_samples_alloc(converted_input_samples, NULL, out->channels, frame->nb_samples, out->sample_fmt, 0)) < 0) {
+        re = ENM4A_NO_MEMORY;
+        goto end;
+    }
+    if ((*ret = swr_convert(sw, converted_input_samples, frame->nb_samples, frame->extended_data, frame->nb_samples)) < 0) {
+        re = ENM4A_FFMPEG_ERR;
+        goto end;
+    }
+    if ((*ret = av_audio_fifo_realloc(fifo, av_audio_fifo_size(fifo) + frame->nb_samples)) < 0) {
+        re = ENM4A_NO_MEMORY;
+        goto end;
+    }
+    if (av_audio_fifo_write(fifo, (void**)converted_input_samples, frame->nb_samples) < frame->nb_samples) {
+        re = ENM4A_FIFO_WRITE_ERR;
+        goto end;
+    }
+end:
+    if (converted_input_samples) {
+        av_freep(&converted_input_samples[0]);
+        free(converted_input_samples);
+    }
+    return re;
+}
+
+ENM4A_ERROR encode_audio_frame(int* ret, AVFrame* frame, AVFormatContext* oc, AVCodecContext* occ, char* writed_data, int64_t* pts, ENM4A_LOG level) {
+    if (!oc || !occ || !ret) return ENM4A_NULL_POINTER;
+    if (frame && !pts) return ENM4A_NULL_POINTER;
+    ENM4A_ERROR re = ENM4A_OK;
+    *writed_data = 0;
+    AVPacket* pkt = av_packet_alloc();
+    if (!pkt) {
+        re = ENM4A_NO_MEMORY;
+        goto end;
+    }
+    if (frame) {
+        frame->pts = *pts;
+        *pts += frame->nb_samples;
+    }
+    if ((*ret = avcodec_send_frame(occ, frame)) < 0) {
+        if (*ret == AVERROR_EOF) {
+            *ret = 0;
+            goto end;
+        }
+        re = ENM4A_FFMPEG_ERR;
+        goto end;
+    }
+    *ret = avcodec_receive_packet(occ, pkt);
+    if (*ret >= 0) {
+        *writed_data = 1;
+    } else if (*ret == AVERROR(EAGAIN) || *ret == AVERROR_EOF) {
+        *ret = 0;
+        goto end;
+    } else {
+        re = ENM4A_FFMPEG_ERR;
+        goto end;
+    }
+    if (*writed_data && (*ret = av_write_frame(oc, pkt)) < 0) {
+        re = ENM4A_FFMPEG_ERR;
+        goto end;
+    }
+    if (level >= ENM4A_LOG_TRACE) {
+        log_packet(oc, pkt, "out");
+    }
+end:
+    if (pkt) {
+        av_packet_free(&pkt);
+    }
+    return re;
+}
+
 ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
     if (!input) return ENM4A_NULL_POINTER;
     switch (args.level) {
@@ -105,15 +228,20 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
         av_log_set_level(AV_LOG_TRACE);
         break;
     }
+    int is_supported;
     AVFormatContext* ic = NULL, * oc = NULL, * imgc = NULL;
     int ret = 0;
     ENM4A_ERROR rev = ENM4A_OK;
     char* title = NULL, * out = NULL, * headers = NULL;
-    char has_img = 0, img_extra_file = 0, has_audio = 0;
+    char has_img = 0, img_extra_file = 0, has_audio = 0, audio_need_encode = 0;
     unsigned int img_stream_index = 0, audio_stream_index = 0, img_dest_index = 0, audio_dest_index = 0, map_index = 0;
     AVPacket pkt;
-    int64_t audio_dts;
+    int64_t audio_dts, audio_pts = 0;
     AVDictionary* demux_option = NULL;
+    AVCodecContext* audio_input = NULL, * audio_output = NULL;
+    SwrContext* resample_context = NULL;
+    AVAudioFifo* afifo = NULL;
+    AVFrame* audio_input_frame = NULL, * audio_output_frame = NULL;
 #ifdef _WIN32
     FILETIME pgtime = { 0, 0 }, tnow = { 0, 0 };
 #elif defined(HAVE_CLOCK_GETTIME)
@@ -121,6 +249,22 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
 #else
     time_t pgtime = LLONG_MIN, tnow = 0;
 #endif
+    if ((rev = enm4a_is_supported_sample_rates(args.default_sample_rate, &is_supported)) != ENM4A_OK) {
+        goto end;
+    }
+    if (!is_supported) {
+        rev = ENM4A_INVALID_DEFUALE_SAMPLE_RATE;
+        goto end;
+    }
+    if (args.sample_rate) {
+        if ((rev = enm4a_is_supported_sample_rates(*(args.sample_rate), &is_supported)) != ENM4A_OK) {
+            goto end;
+        }
+        if (!is_supported) {
+            rev = ENM4A_INVALID_SAMPLE_RATE;
+            goto end;
+        }
+    }
     if (args.http_headers && args.http_header_size) {
         ENM4A_ERROR err;
         headers = enm4a_generate_http_header(args.http_headers, args.http_header_size, &err);
@@ -294,7 +438,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
     if (imgc) {
         for (unsigned int i = 0; i < imgc->nb_streams; i++) {
             AVStream* is = imgc->streams[i], * os = NULL;
-            if (is->codecpar->codec_id == AV_CODEC_ID_MJPEG) {
+            if (is->codecpar->codec_id == AV_CODEC_ID_MJPEG && !has_img) {
                 os = avformat_new_stream(oc, NULL);
                 if (!os) {
                     rev = ENM4A_NO_MEMORY;
@@ -310,6 +454,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
                 img_extra_file = 1;
                 img_stream_index = i;
                 img_dest_index = map_index++;
+                break;
             }
         }
         if (!has_img) {
@@ -319,7 +464,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
     }
     for (unsigned int i = 0; i < ic->nb_streams; i++) {
         AVStream* is = ic->streams[i], * os = NULL;
-        if (is->codecpar->codec_id == AV_CODEC_ID_AAC) {
+        if (is->codecpar->codec_id == AV_CODEC_ID_AAC && !has_audio) {
             os = avformat_new_stream(oc, NULL);
             if (!os) {
                 rev = ENM4A_NO_MEMORY;
@@ -353,6 +498,87 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
         }
     }
     if (!has_audio) {
+        for (unsigned int i = 0; i < ic->nb_streams; i++) {
+            AVStream* is = ic->streams[i], * os = NULL;
+            if (is->codecpar->codec_type == AVMEDIA_TYPE_AUDIO && !has_audio) {
+                const AVCodec* input_codec = avcodec_find_decoder(is->codecpar->codec_id), * output_codec = NULL;
+                if (!input_codec) {
+                    rev = ENM4A_NO_DECODER;
+                    goto end;
+                }
+                audio_input = avcodec_alloc_context3(input_codec);
+                if (!audio_input) {
+                    rev = ENM4A_NO_MEMORY;
+                    goto end;
+                }
+                if ((ret = avcodec_parameters_to_context(audio_input, is->codecpar)) < 0) {
+                    rev = ENM4A_FFMPEG_ERR;
+                    goto end;
+                }
+                if ((ret = avcodec_open2(audio_input, input_codec, NULL)) < 0) {
+                    rev = ENM4A_FFMPEG_ERR;
+                    goto end;
+                }
+                if (!(output_codec = avcodec_find_encoder(AV_CODEC_ID_AAC))) {
+                    rev = ENM4A_NO_ENCODER;
+                    goto end;
+                }
+                if (!(os = avformat_new_stream(oc, NULL))) {
+                    rev = ENM4A_NO_MEMORY;
+                    goto end;
+                }
+                if (!(audio_output = avcodec_alloc_context3(output_codec))) {
+                    rev = ENM4A_NO_MEMORY;
+                    goto end;
+                }
+                audio_output->channels = audio_input->channels;
+                audio_output->channel_layout = av_get_default_channel_layout(audio_output->channels);
+                if (args.sample_rate) {
+                    audio_output->sample_rate = *(args.sample_rate);
+                } else {
+                    set_audio_samplerate(audio_input, audio_output, output_codec, args.default_sample_rate, &rev);
+                }
+                if (rev != ENM4A_OK) {
+                    goto end;
+                }
+                audio_output->sample_fmt = output_codec->sample_fmts[0];
+                audio_output->bits_per_raw_sample = 16;
+                audio_output->bit_rate = args.bitrate;
+                os->time_base.den = audio_output->sample_rate;
+                os->time_base.num = 1;
+                if (oc->oformat->flags & AVFMT_GLOBALHEADER) {
+                    audio_output->flags |= AVFMT_GLOBALHEADER;
+                }
+                if ((ret = avcodec_open2(audio_output, output_codec, NULL)) < 0) {
+                    rev = ENM4A_FFMPEG_ERR;
+                    goto end;
+                }
+                if ((ret = avcodec_parameters_from_context(os->codecpar, audio_output)) < 0) {
+                    rev = ENM4A_FFMPEG_ERR;
+                    goto end;
+                }
+                resample_context = swr_alloc_set_opts(NULL, av_get_default_channel_layout(audio_output->channels), audio_output->sample_fmt, audio_output->sample_rate, av_get_default_channel_layout(audio_input->channels), audio_input->sample_fmt, audio_input->sample_rate, 0, NULL);
+                if (!resample_context) {
+                    rev = ENM4A_NO_MEMORY;
+                    goto end;
+                }
+                if ((ret = swr_init(resample_context)) < 0) {
+                    rev = ENM4A_FFMPEG_ERR;
+                    goto end;
+                }
+                if (!(afifo = av_audio_fifo_alloc(audio_output->sample_fmt, audio_output->channels, 1))) {
+                    rev = ENM4A_NO_MEMORY;
+                    goto end;
+                }
+                has_audio = 1;
+                audio_stream_index = i;
+                audio_dest_index = map_index++;
+                audio_need_encode = 1;
+                break;
+            }
+        }
+    }
+    if (!has_audio) {
         rev = ENM4A_NO_AUDIO;
         goto end;
     }
@@ -363,6 +589,19 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
     set_ctx_metadata(oc, ic, "disc", args.disc);
     set_ctx_metadata(oc, ic, "track", args.track);
     set_ctx_metadata(oc, ic, "date", args.date);
+    if (audio_need_encode) {
+        if (!(audio_input_frame = av_frame_alloc())) {
+            rev = ENM4A_NO_MEMORY;
+            goto end;
+        }
+        if (!(audio_output_frame = av_frame_alloc())) {
+            rev = ENM4A_NO_MEMORY;
+            goto end;
+        }
+        audio_output_frame->channel_layout = audio_output->channel_layout;
+        audio_output_frame->format = audio_output->sample_fmt;
+        audio_output_frame->sample_rate = audio_output->sample_rate;
+    }
     av_dump_format(oc, 0, out, 1);
     if (!(oc->oformat->flags & AVFMT_NOFILE)) {
         if ((ret = avio_open(&oc->pb, out, AVIO_FLAG_WRITE)) < 0) {
@@ -407,50 +646,102 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
             av_packet_unref(&pkt);
         }
     }
-    char cn_img = has_img && !img_extra_file;
+    char cn_img = has_img && !img_extra_file, finished = 0, write_data = 1;
     audio_dts = INT64_MIN;
     while (1) {
         AVStream* is = NULL, * os = NULL;
         if ((ret = av_read_frame(ic, &pkt)) < 0) {
-            if (ret == AVERROR_EOF) break;
-            rev = ENM4A_FFMPEG_ERR;
-            goto end;
+            if (ret == AVERROR_EOF) {
+                finished = 1;
+                if (!audio_need_encode) break;
+            } else {
+                rev = ENM4A_FFMPEG_ERR;
+                goto end;
+            }
         }
-        if (pkt.data == NULL) break;
-        is = ic->streams[pkt.stream_index];
-        if (pkt.stream_index != audio_stream_index) {
+        if (pkt.data == NULL) {
+            finished = 1;
+            if (!audio_need_encode) break;
+        }
+        if (!finished) is = ic->streams[pkt.stream_index];
+        if (!finished && pkt.stream_index != audio_stream_index) {
             if (!cn_img || pkt.stream_index != img_stream_index) {
                 av_packet_unref(&pkt);
                 continue;
             }
         }
-        unsigned int ind = pkt.stream_index == audio_stream_index ? audio_dest_index : img_dest_index;
-        os = oc->streams[ind];
-        if (args.level >= ENM4A_LOG_TRACE) {
+        char is_audio = !finished ? pkt.stream_index == audio_stream_index : 0;
+        unsigned int ind = is_audio ? audio_dest_index : img_dest_index;
+        if (!finished) os = oc->streams[ind];
+        if (args.level >= ENM4A_LOG_TRACE && !finished) {
             log_packet(ic, &pkt, "in");
         }
-        pkt.pts = av_rescale_q_rnd(pkt.pts, is->time_base, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
-        pkt.dts = av_rescale_q_rnd(pkt.dts, is->time_base, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
-        if (pkt.stream_index == audio_stream_index) {
-            if (audio_dts > pkt.dts) {
-                av_log(NULL, AV_LOG_WARNING, "Non-monotonous DTS in output stream 0:%u; previous: %"PRId64", current: %"PRId64"; changing to %"PRId64". This may result in incorrect timestamps in the output file.\n", ind, audio_dts, pkt.dts, audio_dts + 1);
-                pkt.dts = audio_dts + 1;
-                pkt.pts = audio_dts + 1;
+        if ((is_audio && audio_need_encode) || finished) {
+            if (!finished) {
+                if ((ret = avcodec_send_packet(audio_input, &pkt)) < 0) {
+                    rev = ENM4A_FFMPEG_ERR;
+                    goto end;
+                }
+                ret = avcodec_receive_frame(audio_input, audio_input_frame);
+                if (ret >= 0) {
+                    if ((rev = convert_samples_and_add_to_fifo(&ret, audio_output, resample_context, audio_input_frame, afifo)) != ENM4A_OK) {
+                        goto end;
+                    }
+                }
+                else if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+                    ret = 0;
+                } else {
+                    rev = ENM4A_FFMPEG_ERR;
+                    goto end;
+                }
             }
-            audio_dts = pkt.dts;
-        }
-        pkt.duration = av_rescale_q(pkt.duration, is->time_base, os->time_base);
-        pkt.pos = -1;
-        pkt.stream_index = ind;
-        if (args.level >= ENM4A_LOG_TRACE) {
-            log_packet(oc, &pkt, "out");
+            while (av_audio_fifo_size(afifo) >= audio_output->frame_size || (finished && av_audio_fifo_size(afifo) > 0)) {
+                audio_output_frame->nb_samples = FFMIN(av_audio_fifo_size(afifo), audio_output->frame_size);
+                if ((ret = av_frame_get_buffer(audio_output_frame, 0)) < 0) {
+                    rev = ENM4A_NO_MEMORY;
+                    goto end;
+                }
+                if ((rev = encode_audio_frame(&ret, audio_output_frame, oc, audio_output, &write_data, &audio_pts, args.level)) != ENM4A_OK) {
+                    goto end;
+                }
+            }
+            if (finished) {
+                while (1) {
+                    if ((rev = encode_audio_frame(&ret, NULL, oc, audio_output, &write_data, NULL, args.level)) != ENM4A_OK) {
+                        goto end;
+                    }
+                    if (!write_data) break;
+                }
+            }
+        } else {
+            pkt.pts = av_rescale_q_rnd(pkt.pts, is->time_base, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
+            pkt.dts = av_rescale_q_rnd(pkt.dts, is->time_base, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
+            if (pkt.stream_index == audio_stream_index) {
+                if (audio_dts > pkt.dts) {
+                    av_log(NULL, AV_LOG_WARNING, "Non-monotonous DTS in output stream 0:%u; previous: %"PRId64", current: %"PRId64"; changing to %"PRId64". This may result in incorrect timestamps in the output file.\n", ind, audio_dts, pkt.dts, audio_dts + 1);
+                    pkt.dts = audio_dts + 1;
+                    pkt.pts = audio_dts + 1;
+                }
+                audio_dts = pkt.dts;
+            }
+            pkt.duration = av_rescale_q(pkt.duration, is->time_base, os->time_base);
+            pkt.pos = -1;
+            pkt.stream_index = ind;
+            write_data = 1;
+            if (args.level >= ENM4A_LOG_TRACE) {
+                log_packet(oc, &pkt, "out");
+            }
+            if ((ret = av_interleaved_write_frame(oc, &pkt)) < 0) {
+                rev = ENM4A_FFMPEG_ERR;
+                goto end;
+            }
         }
         if (args.level <= ENM4A_LOG_DEBUG) {
 #ifdef _WIN32
             GetSystemTimePreciseAsFileTime(&tnow);
             size_t ts = ft2ts(tnow) - ft2ts(pgtime);
             if (ts >= 2000000ull) {
-                log_progress(oc, pkt.pts, os->time_base);
+                if (os) log_progress(oc, pkt.pts, os->time_base);
                 pgtime = tnow;
             }
 #elif defined(HAVE_CLOCK_GETTIME)
@@ -469,14 +760,28 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
             }
 #endif
         }
-        if ((ret = av_interleaved_write_frame(oc, &pkt)) < 0) {
-            rev = ENM4A_FFMPEG_ERR;
-            goto end;
-        }
-        av_packet_unref(&pkt);
+        if (!finished) av_packet_unref(&pkt);
     }
     av_write_trailer(oc);
 end:
+    if (audio_output_frame) {
+        av_frame_free(&audio_output_frame);
+    }
+    if (audio_input_frame) {
+        av_frame_free(&audio_input_frame);
+    }
+    if (afifo) {
+        av_audio_fifo_free(afifo);
+    }
+    if (resample_context) {
+        swr_free(&resample_context);
+    }
+    if (audio_input) {
+        avcodec_free_context(&audio_input);
+    }
+    if (audio_output) {
+        avcodec_free_context(&audio_output);
+    }
     if (oc) {
         if (!(oc->oformat->flags & AVFMT_NOFILE)) avio_closep(&oc->pb);
         avformat_free_context(oc);
@@ -519,6 +824,16 @@ const char* enm4a_error_msg(ENM4A_ERROR err) {
         return "The key of HTTP HEADER is empty";
     case ENM4A_HTTP_HEADER_NO_COLON:
         return "No colon in HTTP HEADER";
+    case ENM4A_NO_DECODER:
+        return "No suitable decoder finded.";
+    case ENM4A_NO_ENCODER:
+        return "Can not find ACC encoder.";
+    case ENM4A_INVALID_DEFUALE_SAMPLE_RATE:
+        return "Unsupported default sample rate.";
+    case ENM4A_INVALID_SAMPLE_RATE:
+        return "Unsupported sample rate.";
+    case ENM4A_FIFO_WRITE_ERR:
+        return "Can not write data to FIFO.";
     default:
         return "Unknown error";
     }

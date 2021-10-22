@@ -232,7 +232,7 @@ int main(int argc, char* argv[]) {
         printf("Get input file name: %s\n", input.c_str());
     }
     ENM4A_ARGS arg;
-    memset(&arg, 0, sizeof(ENM4A_ARGS));
+    init_enm4a_args(&arg);
     arg.level = level;
     arg.overwrite = overwrite;
     if (output.length()) {
