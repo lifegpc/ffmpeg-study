@@ -52,6 +52,7 @@ Options:\n\
                             this sample rate.\n\
     -s, --sample_rate <value>   Specify output sample rate.\n\
     -b, --bitrate <size>    Specify output bitrate.\n\
+        --print_level       Print log level.\n\
 \n\
 NOTES:\n\
     default_sample_rate, sample_rate, bitrate have no effect if encoder was not used.\n\
@@ -88,6 +89,7 @@ public:
 #define ENM4A_ALBUM_ARTIST 130
 #define ENM4A_DEBUG 131
 #define ENM4A_DEFAULT_SAMPLE_RATE 132
+#define ENM4A_PRINT_LEVEL 133
 
 int main(int argc, char* argv[]) {
 #if _WIN32
@@ -132,6 +134,8 @@ int main(int argc, char* argv[]) {
         {"sample_rate", 1, nullptr, 's'},
         {"sample-rate", 1, nullptr, 's'},
         {"bitrate", 1, nullptr, 'b'},
+        {"print_level", 0, nullptr, ENM4A_PRINT_LEVEL},
+        {"print-level", 0, nullptr, ENM4A_PRINT_LEVEL},
         nullptr,
     };
     int c;
@@ -155,6 +159,7 @@ int main(int argc, char* argv[]) {
     int default_sample_rate = -1;
     int sample_rate = -1;
     int64_t bitrate = -1;
+    bool print_level = false;
     while ((c = getopt_long(argc, argv, shortopts, opts, nullptr)) != -1) {
         switch (c) {
         case 'h':
@@ -283,6 +288,9 @@ int main(int argc, char* argv[]) {
             }
             bitrate = bits;
             break;
+        case ENM4A_PRINT_LEVEL:
+            print_level = true;
+            break;
         case 1:
             if (!input.length()) {
                 input = optarg;
@@ -354,6 +362,7 @@ int main(int argc, char* argv[]) {
     if (bitrate > -1) {
         arg.bitrate = bitrate;
     }
+    if (print_level) arg.print_level = 1;
     ENM4A_ERROR re = encode_m4a(input.c_str(), arg);
     if (arg.output) {
         free(arg.output);

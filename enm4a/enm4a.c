@@ -236,6 +236,9 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
         av_log_set_level(AV_LOG_TRACE);
         break;
     }
+    if (args.print_level) {
+        av_log_set_flags(AV_LOG_PRINT_LEVEL);
+    }
     int is_supported;
     AVFormatContext* ic = NULL, * oc = NULL, * imgc = NULL;
     int ret = 0;
