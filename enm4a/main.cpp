@@ -19,6 +19,9 @@
 #if HAVE_PRINTF_S
 #define printf printf_s
 #endif
+#if HAVE_SSCANF_S
+#define sscanf sscanf_s
+#endif
 
 void print_help() {
     printf("%s", "Usage: enm4a [options] FILE\n\
@@ -42,7 +45,11 @@ Options:\n\
     -y, --yes               Overwrite file if output file is already existed.\n\
     -n, --no                Don't overwrite file if output file is already existed.\n\
     -V, --version           Print version.\n\
-    -H, --header <header>   Add custom HTTP Header.\n");
+    -H, --header <header>   Add custom HTTP Header.\n\
+        --default_sample_rate <value>   Set default output sample rate.\n\
+                            If source stream's sample rate is not suitable, will use\n\
+                            this sample rate.\n\
+    -s, --sample_rate <value>\n     Set output sample rate.\n");
 }
 
 void print_version(bool verbose) {
@@ -74,6 +81,7 @@ public:
 #define ENM4A_TRACE 129
 #define ENM4A_ALBUM_ARTIST 130
 #define ENM4A_DEBUG 131
+#define ENM4A_DEFAULT_SAMPLE_RATE 132
 
 int main(int argc, char* argv[]) {
 #if _WIN32
@@ -113,10 +121,14 @@ int main(int argc, char* argv[]) {
         {"no", 0, nullptr, 'n'},
         {"version", 0, nullptr, 'V'},
         {"header", 1, nullptr, 'H'},
+        {"default_sample_rate", 1, nullptr, ENM4A_DEFAULT_SAMPLE_RATE},
+        {"default-sample-rate", 1, nullptr, ENM4A_DEFAULT_SAMPLE_RATE},
+        {"sample_rate", 1, nullptr, 's'},
+        {"sample-rate", 1, nullptr, 's'},
         nullptr,
     };
     int c;
-    const char* shortopts = "-ho:vd:t:c:a:A:T:D:ynVH:";
+    const char* shortopts = "-ho:vd:t:c:a:A:T:D:ynVH:s:";
     std::string output = "";
     std::string input = "";
     ENM4A_LOG level = ENM4A_LOG_INFO;
@@ -133,6 +145,8 @@ int main(int argc, char* argv[]) {
     Enm4aHTTPHeaderList headers;
     ENM4A_ERROR err = ENM4A_OK;
     ENM4A_HTTP_HEADER* header = NULL;
+    int default_sample_rate = -1;
+    int sample_rate = -1;
     while ((c = getopt_long(argc, argv, shortopts, opts, nullptr)) != -1) {
         switch (c) {
         case 'h':
@@ -192,6 +206,58 @@ int main(int argc, char* argv[]) {
                 headers.push_back(header);
             } else {
                 printf("Can not parse HTTP Header: %s\n", enm4a_error_msg(err));
+#if _WIN32
+                if (have_wargv) wchar_util::freeArgv(wargv, wargc);
+#endif
+                return 1;
+            }
+            break;
+        case ENM4A_DEFAULT_SAMPLE_RATE:
+            if (sscanf(optarg, "%d", &default_sample_rate) == 1) {
+                int re = 0;
+                err = enm4a_is_supported_sample_rates(default_sample_rate, &re);
+                if (err != ENM4A_OK) {
+                    printf("Can not check defualt sample rate is supported by AAC encoder: %s\n", enm4a_error_msg(err));
+#if _WIN32
+                    if (have_wargv) wchar_util::freeArgv(wargv, wargc);
+#endif
+                    return 1;
+                }
+                if (!re) {
+                    printf("%i is not supported by AAC encoder.", default_sample_rate);
+#if _WIN32
+                    if (have_wargv) wchar_util::freeArgv(wargv, wargc);
+#endif
+                    return 1;
+                }
+            } else {
+                printf("defualt_sample_rate should be a integer.\n");
+#if _WIN32
+                if (have_wargv) wchar_util::freeArgv(wargv, wargc);
+#endif
+                return 1;
+            }
+            break;
+        case 's':
+            if (sscanf(optarg, "%d", &sample_rate) == 1) {
+                int re = 0;
+                err = enm4a_is_supported_sample_rates(sample_rate, &re);
+                if (err != ENM4A_OK) {
+                    printf("Can not check sample rate is supported by AAC encoder: %s\n", enm4a_error_msg(err));
+#if _WIN32
+                    if (have_wargv) wchar_util::freeArgv(wargv, wargc);
+#endif
+                    return 1;
+                }
+                if (!re) {
+                    printf("%i is not supported by AAC encoder.", sample_rate);
+#if _WIN32
+                    if (have_wargv) wchar_util::freeArgv(wargv, wargc);
+#endif
+                    return 1;
+                }
+            } else {
+                printf("Sample rate should be a integer.\n");
 #if _WIN32
                 if (have_wargv) wchar_util::freeArgv(wargv, wargc);
 #endif
@@ -259,6 +325,12 @@ int main(int argc, char* argv[]) {
         for (auto i = headers.begin(); i != headers.end(); i++) {
             arg.http_headers[j++] = *i;
         }
+    }
+    if (default_sample_rate > -1) {
+        arg.default_sample_rate = default_sample_rate;
+    }
+    if (sample_rate > -1) {
+        arg.sample_rate = &sample_rate;
     }
     ENM4A_ERROR re = encode_m4a(input.c_str(), arg);
     if (arg.output) {
