@@ -3,7 +3,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include <stdint.h>
+#include <stddef.h>
 /**
  * @brief Check file exists
  * @param fn File name
