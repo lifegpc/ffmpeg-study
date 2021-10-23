@@ -174,7 +174,7 @@ end:
     return re;
 }
 
-ENM4A_ERROR encode_audio_frame(int* ret, AVFrame* frame, AVFormatContext* oc, AVCodecContext* occ, char* writed_data, int64_t* pts, ENM4A_LOG level) {
+ENM4A_ERROR encode_audio_frame(int* ret, AVFrame* frame, AVFormatContext* oc, AVCodecContext* occ, char* writed_data, int64_t* pts, ENM4A_LOG level, unsigned int stream_index) {
     if (!oc || !occ || !ret) return ENM4A_NULL_POINTER;
     if (frame && !pts) return ENM4A_NULL_POINTER;
     ENM4A_ERROR re = ENM4A_OK;
@@ -199,16 +199,15 @@ ENM4A_ERROR encode_audio_frame(int* ret, AVFrame* frame, AVFormatContext* oc, AV
     *ret = avcodec_receive_packet(occ, pkt);
     if (*ret >= 0) {
         *writed_data = 1;
-    } else if (*ret == AVERROR_EOF) {
+    } else if (*ret == AVERROR_EOF || *ret == AVERROR(EAGAIN)) {
         *ret = 0;
-        goto end;
-    } else if (*ret == AVERROR(EAGAIN)) {
-        *ret = 0;
-        *writed_data = 1;
         goto end;
     } else {
         re = ENM4A_FFMPEG_ERR;
         goto end;
+    }
+    if (*writed_data && pkt) {
+        pkt->stream_index = stream_index;
     }
     if (*writed_data && (*ret = av_write_frame(oc, pkt)) < 0) {
         re = ENM4A_FFMPEG_ERR;
@@ -685,6 +684,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
             log_packet(ic, &pkt, "in");
         }
         if ((is_audio && audio_need_encode) || finished) {
+            ind = audio_dest_index;
             if (!finished) {
                 if ((ret = avcodec_send_packet(audio_input, &pkt)) < 0) {
                     rev = ENM4A_FFMPEG_ERR;
@@ -716,7 +716,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
                     rev = ENM4A_NO_MEMORY;
                     goto end;
                 }
-                if ((rev = encode_audio_frame(&ret, audio_output_frame, oc, audio_output, &write_data, &audio_pts, args.level)) != ENM4A_OK) {
+                if ((rev = encode_audio_frame(&ret, audio_output_frame, oc, audio_output, &write_data, &audio_pts, args.level, ind)) != ENM4A_OK) {
                     goto end;
                 }
                 if (args.level >= ENM4A_LOG_TRACE) {
@@ -725,7 +725,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
             }
             if (finished) {
                 while (1) {
-                    if ((rev = encode_audio_frame(&ret, NULL, oc, audio_output, &write_data, NULL, args.level)) != ENM4A_OK) {
+                    if ((rev = encode_audio_frame(&ret, NULL, oc, audio_output, &write_data, NULL, args.level, ind)) != ENM4A_OK) {
                         goto end;
                     }
                     if (!write_data) break;
