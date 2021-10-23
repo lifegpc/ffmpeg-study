@@ -11,6 +11,7 @@
 #include <list>
 #include "enm4a.h"
 #include "cpp2c.h"
+#include "fileop.h"
 
 #if _WIN32
 #include "Windows.h"
@@ -49,7 +50,12 @@ Options:\n\
         --default_sample_rate <value>   Set default output sample rate.\n\
                             If source stream's sample rate is not suitable, will use\n\
                             this sample rate.\n\
-    -s, --sample_rate <value>     Set output sample rate.\n");
+    -s, --sample_rate <value>   Specify output sample rate.\n\
+    -b, --bitrate <size>    Specify output bitrate.\n\
+\n\
+NOTES:\n\
+    default_sample_rate, sample_rate, bitrate have no effect if encoder was not used.\n\
+    AAC stream will be copyed by default.\n");
 }
 
 void print_version(bool verbose) {
@@ -125,10 +131,11 @@ int main(int argc, char* argv[]) {
         {"default-sample-rate", 1, nullptr, ENM4A_DEFAULT_SAMPLE_RATE},
         {"sample_rate", 1, nullptr, 's'},
         {"sample-rate", 1, nullptr, 's'},
+        {"bitrate", 1, nullptr, 'b'},
         nullptr,
     };
     int c;
-    const char* shortopts = "-ho:vd:t:c:a:A:T:D:ynVH:s:";
+    const char* shortopts = "-ho:vd:t:c:a:A:T:D:ynVH:s:b:";
     std::string output = "";
     std::string input = "";
     ENM4A_LOG level = ENM4A_LOG_INFO;
@@ -147,6 +154,7 @@ int main(int argc, char* argv[]) {
     ENM4A_HTTP_HEADER* header = NULL;
     int default_sample_rate = -1;
     int sample_rate = -1;
+    int64_t bitrate = -1;
     while ((c = getopt_long(argc, argv, shortopts, opts, nullptr)) != -1) {
         switch (c) {
         case 'h':
@@ -264,6 +272,17 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
             break;
+        case 'b':
+            size_t bits;
+            if (!fileop::parse_size(optarg, bits, false)) {
+                printf("Can not parse size string.\n");
+#if _WIN32
+                if (have_wargv) wchar_util::freeArgv(wargv, wargc);
+#endif
+                return 1;
+            }
+            bitrate = bits;
+            break;
         case 1:
             if (!input.length()) {
                 input = optarg;
@@ -331,6 +350,9 @@ int main(int argc, char* argv[]) {
     }
     if (sample_rate > -1) {
         arg.sample_rate = &sample_rate;
+    }
+    if (bitrate > -1) {
+        arg.bitrate = bitrate;
     }
     ENM4A_ERROR re = encode_m4a(input.c_str(), arg);
     if (arg.output) {

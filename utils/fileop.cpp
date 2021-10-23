@@ -12,6 +12,7 @@
 #endif
 #include "err.h"
 #include "wchar_util.h"
+#include <regex>
 
 #ifdef _WIN32
 #if HAVE__ACCESS_S
@@ -22,6 +23,9 @@
 #endif
 #if HAVE_PRINTF_S
 #define printf printf_s
+#endif
+#if HAVE_SSCANF_S
+#define sscanf sscanf_s
 #endif
 #endif
 
@@ -125,4 +129,50 @@ std::string fileop::basename(std::string fn) {
             return fn.substr(i + 1, iq - i - 1);
         }
     }
+}
+
+bool fileop::parse_size(std::string size, size_t& fs, bool is_byte) {
+    const std::regex REG(R"(^(\d+)([kmgtpezy])?(i)?(b)?$)", std::regex::icase);
+    std::smatch m;
+    if (!std::regex_search(size, m, REG)) {
+        return false;
+    }
+    auto bs = m[1].str();
+    size_t base;
+    if (sscanf(bs.c_str(), "%zu", &base) != 1) {
+        return false;
+    }
+    size_t pow = 0;
+    if (m[2].matched) {
+        auto sp = std::tolower(m[2].str()[0]);
+        if (sp == 'k') pow = 1;
+        else if (sp == 'm') pow = 2;
+        else if (sp == 'g') pow = 3;
+        else if (sp == 't') pow = 4;
+        else if (sp == 'p') pow = 5;
+        else if (sp == 'e') pow = 6;
+        else if (sp == 'z') pow = 7;
+        else if (sp == 'y') pow = 8;
+    }
+    if (m[3].matched) {
+        pow = 1ull << (pow * 10);
+    } else {
+        size_t tmp = 1;
+        while (pow > 0) {
+            tmp *= 1000ull;
+            pow--;
+        }
+        pow = tmp;
+    }
+    if (m[4].matched) {
+        auto b = m[4].str();
+        if (b == "b") {
+            fs = is_byte ? base * pow / 8ull : base * pow;
+        } else {
+            fs = is_byte ? base * pow : base * pow * 8ull;
+        }
+    } else {
+        fs = base * pow;
+    }
+    return true;
 }

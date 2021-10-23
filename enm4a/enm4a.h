@@ -59,7 +59,7 @@ typedef struct ENM4A_ARGS {
     int default_sample_rate;
     int* sample_rate;
     /// Target bitrate. Used when need encoding.
-    size_t bitrate;
+    int64_t bitrate;
 } ENM4A_ARGS;
 
 /**

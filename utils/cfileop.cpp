@@ -31,3 +31,11 @@ char* fileop_basename(const char* fn) {
     char* tmp = nullptr;
     return cpp2c::string2char(re, tmp) ? tmp : nullptr;
 }
+
+int fileop_parse_size(const char* size, size_t* fs, int is_byte) {
+    if (!size || !fs) return 0;
+    size_t tmp;
+    auto re = fileop::parse_size(size, tmp, is_byte);
+    if (re) *fs = tmp;
+    return re ? 1 : 0;
+}

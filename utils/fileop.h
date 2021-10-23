@@ -34,5 +34,13 @@ namespace fileop {
      * @return File name.
     */
     std::string basename(std::string fn);
+    /**
+     * @brief Parse size string
+     * @param size size string. Such as "10KiB", "10", "34B", "48K"
+     * @param fs size
+     * @param is_byte Whether to return bits or bytes
+     * @return true if successed.
+    */
+    bool parse_size(std::string size, size_t& fs, bool is_byte = true);
 }
 #endif

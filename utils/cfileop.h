@@ -3,6 +3,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include <stdint.h>
 /**
  * @brief Check file exists
  * @param fn File name
@@ -34,6 +35,14 @@ int fileop_is_url(const char* fn, int* re);
  * @return File name. Need free memory by calling free.
 */
 char* fileop_basename(const char* fn);
+/**
+ * @brief Parse size string
+ * @param size Such as "10KiB", "10", "34B", "48K"
+ * @param fs size
+ * @param is_byte Whether to return bits or bytes
+ * @return 1 if successed otherwise 0
+*/
+int fileop_parse_size(const char* size, size_t* fs, int is_byte);
 #ifdef __cplusplus
 }
 #endif
