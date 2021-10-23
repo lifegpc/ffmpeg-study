@@ -49,7 +49,7 @@ Options:\n\
         --default_sample_rate <value>   Set default output sample rate.\n\
                             If source stream's sample rate is not suitable, will use\n\
                             this sample rate.\n\
-    -s, --sample_rate <value>\n     Set output sample rate.\n");
+    -s, --sample_rate <value>     Set output sample rate.\n");
 }
 
 void print_version(bool verbose) {
