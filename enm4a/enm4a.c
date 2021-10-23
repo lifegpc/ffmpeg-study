@@ -154,7 +154,7 @@ ENM4A_ERROR convert_samples_and_add_to_fifo(int* ret, AVCodecContext* out, SwrCo
         re = ENM4A_NO_MEMORY;
         goto end;
     }
-    if ((*ret = swr_convert(sw, converted_input_samples, frame->nb_samples, frame->extended_data, frame->nb_samples)) < 0) {
+    if ((*ret = swr_convert(sw, converted_input_samples, frame->nb_samples, (const uint8_t**)frame->extended_data, frame->nb_samples)) < 0) {
         re = ENM4A_FFMPEG_ERR;
         goto end;
     }
@@ -712,7 +712,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
                     rev = ENM4A_NO_MEMORY;
                     goto end;
                 }
-                if ((ret = av_audio_fifo_read(afifo, audio_output_frame->data, audio_output_frame->nb_samples)) < 0) {
+                if ((ret = av_audio_fifo_read(afifo, (void**)audio_output_frame->data, audio_output_frame->nb_samples)) < 0) {
                     rev = ENM4A_NO_MEMORY;
                     goto end;
                 }

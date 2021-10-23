@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 #include <stdint.h>
+#include <stddef.h>
 
 typedef enum ENM4A_ERROR {
     ENM4A_OK,
