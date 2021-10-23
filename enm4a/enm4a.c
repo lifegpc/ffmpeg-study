@@ -35,9 +35,14 @@
 #define ts2ts(t) (t.tv_sec * 1000000000ll + t.tv_nsec)
 #endif
 
+const AVCodec* find_aac_codec_encoder() {
+    const AVCodec* c = avcodec_find_encoder(AV_CODEC_ID_AAC);
+    return c;
+}
+
 ENM4A_ERROR enm4a_is_supported_sample_rates(int sample_rate, int* result) {
     if (!result) return ENM4A_NULL_POINTER;
-    const AVCodec* c = avcodec_find_encoder(AV_CODEC_ID_AAC);
+    const AVCodec* c = find_aac_codec_encoder();
     if (!c) return ENM4A_NO_ENCODER;
     int i = 0;
     while (c->supported_samplerates[i] != 0) {
@@ -55,7 +60,7 @@ void init_enm4a_args(ENM4A_ARGS* args) {
     if (!args) return;
     memset(args, 0, sizeof(ENM4A_ARGS));
     args->default_sample_rate = 48000;
-    args->bitrate = 320 * 1024;
+    args->bitrate = 320 * 1000;
 }
 
 void set_audio_samplerate(const AVCodecContext* in, AVCodecContext* out, const AVCodec* oc, int default_sample_rate, ENM4A_ERROR* err) {
@@ -186,16 +191,20 @@ ENM4A_ERROR encode_audio_frame(int* ret, AVFrame* frame, AVFormatContext* oc, AV
     if ((*ret = avcodec_send_frame(occ, frame)) < 0) {
         if (*ret == AVERROR_EOF) {
             *ret = 0;
+        } else {
+            re = ENM4A_FFMPEG_ERR;
             goto end;
         }
-        re = ENM4A_FFMPEG_ERR;
-        goto end;
     }
     *ret = avcodec_receive_packet(occ, pkt);
     if (*ret >= 0) {
         *writed_data = 1;
-    } else if (*ret == AVERROR(EAGAIN) || *ret == AVERROR_EOF) {
+    } else if (*ret == AVERROR_EOF) {
         *ret = 0;
+        goto end;
+    } else if (*ret == AVERROR(EAGAIN)) {
+        *ret = 0;
+        *writed_data = 1;
         goto end;
     } else {
         re = ENM4A_FFMPEG_ERR;
@@ -519,7 +528,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
                     rev = ENM4A_FFMPEG_ERR;
                     goto end;
                 }
-                if (!(output_codec = avcodec_find_encoder(AV_CODEC_ID_AAC))) {
+                if (!(output_codec = find_aac_codec_encoder())) {
                     rev = ENM4A_NO_ENCODER;
                     goto end;
                 }
@@ -542,7 +551,6 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
                     goto end;
                 }
                 audio_output->sample_fmt = output_codec->sample_fmts[0];
-                audio_output->bits_per_raw_sample = 16;
                 audio_output->bit_rate = args.bitrate;
                 os->time_base.den = audio_output->sample_rate;
                 os->time_base.num = 1;
@@ -695,14 +703,24 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
                     goto end;
                 }
             }
+            if (args.level >= ENM4A_LOG_TRACE) {
+                printf("the size of fifo: %d\n", av_audio_fifo_size(afifo));
+            }
             while (av_audio_fifo_size(afifo) >= audio_output->frame_size || (finished && av_audio_fifo_size(afifo) > 0)) {
                 audio_output_frame->nb_samples = FFMIN(av_audio_fifo_size(afifo), audio_output->frame_size);
                 if ((ret = av_frame_get_buffer(audio_output_frame, 0)) < 0) {
                     rev = ENM4A_NO_MEMORY;
                     goto end;
                 }
+                if ((ret = av_audio_fifo_read(afifo, audio_output_frame->data, audio_output_frame->nb_samples)) < 0) {
+                    rev = ENM4A_NO_MEMORY;
+                    goto end;
+                }
                 if ((rev = encode_audio_frame(&ret, audio_output_frame, oc, audio_output, &write_data, &audio_pts, args.level)) != ENM4A_OK) {
                     goto end;
+                }
+                if (args.level >= ENM4A_LOG_TRACE) {
+                    printf("the size of fifo: %d\n", av_audio_fifo_size(afifo));
                 }
             }
             if (finished) {
@@ -761,6 +779,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
 #endif
         }
         if (!finished) av_packet_unref(&pkt);
+        if (finished) break;
     }
     av_write_trailer(oc);
 end:
