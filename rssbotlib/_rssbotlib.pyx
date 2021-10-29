@@ -1,20 +1,7 @@
-from enum import Enum, unique
 from avutil cimport *
 from videoinfo cimport *
 from avcodec cimport *
 from libc.string cimport memcpy
-
-
-@unique
-class AddVideoInfoResult(Enum):
-    OK = 0
-    ERROR = 1
-    IsHLS = 2
-
-
-def err_msg(int re):
-    cdef char errbuf[AV_ERROR_MAX_STRING_SIZE]
-    return av_make_error_string(errbuf, AV_ERROR_MAX_STRING_SIZE, re)
 
 
 def version():
