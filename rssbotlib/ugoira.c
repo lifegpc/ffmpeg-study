@@ -318,7 +318,11 @@ UGOIRA_ERROR convert_ugoira_to_mp4(const char* src, const char* dest, UGOIRA_FRA
             eoc->height = eic->height;
             eoc->sample_aspect_ratio = eic->sample_aspect_ratio;
             eoc->framerate = fps;
-            if (ugoira_is_supported_pixfmt(eic->pix_fmt, output_codec->pix_fmts)) {
+            AVDictionaryEntry* force_yuv420p = NULL;
+            if (opt) {
+                force_yuv420p = av_dict_get(opt, "force_yuv420p", NULL, 0);
+            }
+            if (!force_yuv420p && ugoira_is_supported_pixfmt(eic->pix_fmt, output_codec->pix_fmts)) {
                 eoc->pix_fmt = eic->pix_fmt;
             } else {
                 eoc->pix_fmt = AV_PIX_FMT_YUV420P;
