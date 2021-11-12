@@ -47,14 +47,14 @@ void init_ugoira_error(UGOIRA_ERROR* err) {
     memset(err, 0, sizeof(UGOIRA_ERROR));
 }
 
-float ugoira_cal_inteval(UGOIRA_FRAME** frames, size_t nb_frames, float max_fps) {
+float ugoira_cal_fps(UGOIRA_FRAME** frames, size_t nb_frames, float max_fps) {
     if (nb_frames == 0) return max_fps;
     int re = frames[0]->delay;
     size_t i = 1;
     for (; i < nb_frames; i++) {
         re = GCD(re, frames[i]->delay);
     }
-    return FFMAX(re, 1000 / max_fps);
+    return FFMIN(1000 / ((float)re), max_fps);
 }
 
 int ugoira_is_supported_pixfmt(enum AVPixelFormat fmt, const enum AVPixelFormat* fmts) {
@@ -187,8 +187,7 @@ UGOIRA_ERROR convert_ugoira_to_mp4(const char* src, const char* dest, UGOIRA_FRA
     if (crf && *crf >= -1) {
         dcrf = *crf;
     }
-    float intval = ugoira_cal_inteval(frames, nb_frames, max_fps);
-    AVRational fps = { 10000000, (int)((intval) * 10000 + 0.5) };
+    AVRational fps = { (int)(ugoira_cal_fps(frames, nb_frames, max_fps) * AV_TIME_BASE + 0.5), AV_TIME_BASE };
     AVRational time_base = { fps.den, fps.num };
     AVFormatContext* ic = NULL, * oc = NULL;
     AVIOContext* iioc = NULL;
@@ -206,6 +205,7 @@ UGOIRA_ERROR convert_ugoira_to_mp4(const char* src, const char* dest, UGOIRA_FRA
     AVPacket pkt;
     AVFrame* ifr = NULL, * ofr = NULL;
     char writed = 0;
+    const static AVRational tb = { 1, 1000 };
     if (fileop_exists(dest)) {
         if (!fileop_remove(dest)) {
             re.e = UGOIRA_REMOVE_OUTPUT_FILE_FAILED;
@@ -435,7 +435,7 @@ UGOIRA_ERROR convert_ugoira_to_mp4(const char* src, const char* dest, UGOIRA_FRA
                 re.e = UGOIRA_FFMPEG_ERROR;
                 goto end;
             }
-            max_de += av_rescale_q_rnd((int)(frames[i]->delay / intval + 0.5), time_base, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
+            max_de += av_rescale_q_rnd(frames[i]->delay, tb, os->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
             while (pts < max_de) {
                 if (ugoira_encode_video(&re, ofr, oc, eoc, &writed, &pts, os->index, time_base) != UGOIRA_OK) {
                     goto end;
