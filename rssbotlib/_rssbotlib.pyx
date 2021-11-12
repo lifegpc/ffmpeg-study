@@ -1,11 +1,14 @@
 from avutil cimport *
 from videoinfo cimport *
 from avcodec cimport *
+from ugoira cimport *
+from ugoira cimport convert_ugoira_to_mp4 as cut4
 from libc.string cimport memcpy
+from libc.stdlib cimport malloc, free
 
 
 def version():
-    return [1, 0, 0, 0]
+    return [1, 0, 0, 1]
 
 
 cdef inline void check_err(int re) except *:
@@ -67,6 +70,9 @@ cdef class AVDict:
 
     def __str__(self):
         return str(self.to_list())
+
+    cdef AVDictionary* cget(self):
+        return self.d
 
     def copy(self, int flags = 0):
         n = AVDict()
@@ -314,3 +320,60 @@ cdef class VideoInfo:
     def type_name(self):
         if self.info.type_name != NULL:
             return try_decode(self.info.type_name)
+
+
+def convert_ugoira_to_mp4(src, dest, frames, max_fps = 60.0, crf = None, opts: AVDict = None):
+    if opts is not None:
+        if not isinstance(opts, AVDict):
+            raise TypeError('Not supported type.')
+    cdef AVDictionary* opt = NULL if opts is None else opts.cget()
+    cdef int tcrf = 0
+    cdef int* dcrf = NULL
+    cdef size_t nb_frames = len(frames)
+    if nb_frames == 0:
+        raise ValueError('frames is needed.')
+    if crf is not None:
+        tcrf = crf
+        dcrf = &tcrf
+    if isinstance(src, str):
+        tsrc = src.encode()
+    elif isinstance(src, bytes):
+        tsrc = src
+    else:
+        tsrc = str(src).encode()
+    if isinstance(dest, str):
+        tdst = dest.encode()
+    elif isinstance(dest, bytes):
+        tdst = dest
+    else:
+        tdst = str(dest).encode()
+    cdef UGOIRA_FRAME** cframes = <UGOIRA_FRAME**>malloc(sizeof(void*) * nb_frames)
+    if cframes == NULL:
+        raise MemoryError()
+    cdef size_t i = 0
+    cdef UGOIRA_ERROR err
+    try:
+        for o in frames:
+            cframes[i] = new_ugoira_frame(o['file'].encode(), o['delay'])
+            if cframes[i] == NULL:
+                raise ValueError('Invalid frame: %s' % (o,))
+            i += 1
+        err = cut4(tsrc, tdst, cframes, nb_frames, max_fps, dcrf, opt)
+    except Exception as e:
+        for t in range(i):
+            free_ugoira_frame(cframes[t])
+        free(cframes)
+        raise e
+    i = 0
+    while i < nb_frames:
+        free_ugoira_frame(cframes[i])
+        i += 1
+    free(cframes)
+    if err.e == UGOIRA_OK:
+        return True
+    elif err.e == UGOIRA_FFMPEG_ERROR:
+        print(try_decode(av_err2str(err.fferr)))
+        return False
+    else:
+        print(try_decode(ugoira_error_msg(err)))
+        return False

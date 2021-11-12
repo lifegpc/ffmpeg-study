@@ -11,6 +11,7 @@ endif()
 find_package(AVFORMAT 59 REQUIRED)
 find_package(AVCODEC 59 REQUIRED)
 find_package(AVUTIL 57 REQUIRED)
+find_package(SWSCALE 6 REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module)
 
 set(RSSBOTLIB_FILES "${CMAKE_CURRENT_SOURCE_DIR}/_rssbotlib.c")
@@ -22,11 +23,17 @@ set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/_rssbotlib.c" PROPERTIE
 
 include_directories(${Python3_INCLUDE_DIR})
 
+if (NOT TARGET utils)
+    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../utils" "${CMAKE_BINARY_DIR}/utils")
+    include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../utils")
+endif()
+
 add_custom_target(rssbotlib-gen "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/gen.py")
 if (WIN32)
     add_custom_target(rssbotlib-version ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/RSSBOTLIB_VERSION.cmake")
 endif()
-add_library(_rssbotlib SHARED "${RSSBOTLIB_FILES}" videoinfo.c videoinfo.h)
+add_library(_rssbotlib SHARED "${RSSBOTLIB_FILES}" videoinfo.c videoinfo.h
+ugoira.c ugoira.h zipfile.c zipfile.h)
 if (WIN32)
     set_target_properties(_rssbotlib PROPERTIES SUFFIX .pyd)
 endif()
@@ -39,3 +46,5 @@ target_link_libraries(_rssbotlib Python3::Module)
 target_link_libraries(_rssbotlib AVFORMAT::AVFORMAT)
 target_link_libraries(_rssbotlib AVCODEC::AVCODEC)
 target_link_libraries(_rssbotlib AVUTIL::AVUTIL)
+target_link_libraries(_rssbotlib SWSCALE::SWSCALE)
+target_link_libraries(_rssbotlib utils)

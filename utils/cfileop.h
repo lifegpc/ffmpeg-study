@@ -9,13 +9,13 @@ extern "C" {
  * @param fn File name
  * @returns 1 if file is exists otherwise 0
 */
-int fileop_exists(char* fn);
+int fileop_exists(const char* fn);
 /**
  * @brief Remove file
  * @param fn File name
  * @returns 1 if successed otherwise 0
 */
-int fileop_remove(char* fn);
+int fileop_remove(const char* fn);
 /**
  * @brief Get directory name from path
  * @param fn Path

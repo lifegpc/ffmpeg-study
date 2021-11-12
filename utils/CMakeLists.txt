@@ -28,6 +28,8 @@ set(SOURCE_FILE
     err.cpp
     fileop.cpp
     wchar_util.cpp
+    memfile.c
+    cmath.c
 )
 set(SOURCE_FILE_HEADERS
     cfileop.h
@@ -37,6 +39,8 @@ set(SOURCE_FILE_HEADERS
     fileop.h
     list_pointer.h
     wchar_util.h
+    memfile.h
+    cmath.h
 )
 
 add_library(utils STATIC ${SOURCE_FILE} ${SOURCE_FILE_HEADERS})
