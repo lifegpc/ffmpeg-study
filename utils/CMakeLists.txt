@@ -21,6 +21,10 @@ if (HAVE_STRERROR_R)
 endif()
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/utils_config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/utils_config.h")
 
+if (${CMAKE_C_COMPILER_ID} STREQUAL GNU)
+    add_compile_options(-fPIC)
+endif()
+
 set(SOURCE_FILE
     cfileop.cpp
     cpp2c.cpp
