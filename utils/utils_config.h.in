@@ -1,9 +1,0 @@
-#pragma once
-#cmakedefine HAVE__ACCESS_S @HAVE__ACCESS_S@
-#cmakedefine HAVE__WACCESS_S @HAVE__WACCESS_S@
-#cmakedefine HAVE_STRERROR_S @HAVE_STRERROR_S@
-#cmakedefine HAVE__WCSERROR_S @HAVE__WCSERROR_S@
-#cmakedefine HAVE_PRINTF_S @HAVE_PRINTF_S@
-#cmakedefine HAVE_STRERROR_R @HAVE_STRERROR_R@
-#cmakedefine HAVE_GNU_STRERROR_R @HAVE_GNU_STRERROR_R@
-#cmakedefine HAVE_SSCANF_S @HAVE_SSCANF_S@
