@@ -7,7 +7,6 @@ if (MSVC)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 
 find_package(AVFORMAT 59 REQUIRED)
 find_package(AVCODEC 59 REQUIRED)
@@ -19,7 +18,6 @@ include_directories(${AVFORMAT_INCLUDE_DIRS})
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
 include(GNUInstallDirs)
-include(ENM4A_VERSION)
 if (WIN32)
     check_symbol_exists(printf_s "stdio.h" HAVE_PRINTF_S)
     check_symbol_exists(sscanf_s "stdio.h" HAVE_SSCANF_S)
@@ -47,6 +45,7 @@ add_custom_target(enm4a_version
 
 if (WIN32)
     set(ENM4A_RC "${CMAKE_CURRENT_BINARY_DIR}/enm4a.rc")
+    set_source_files_properties(${ENM4A_RC} PROPERTIES GENERATED TRUE)
 endif()
 
 add_executable(enm4a enm4a.h enm4a.c enm4a_http_header.h enm4a_http_header.c main.cpp ${ENM4A_RC})
