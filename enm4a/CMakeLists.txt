@@ -11,7 +11,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 find_package(AVFORMAT 58 REQUIRED)
 find_package(AVCODEC 58 REQUIRED)
 find_package(AVUTIL 56 REQUIRED)
-find_package(SWRESAMPLE 4 REQUIRED)
+find_package(SWRESAMPLE 3.9 REQUIRED)
 
 include_directories(${AVFORMAT_INCLUDE_DIRS})
 
