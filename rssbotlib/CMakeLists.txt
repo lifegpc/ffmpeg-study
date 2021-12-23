@@ -33,7 +33,7 @@ if (WIN32)
     add_custom_target(rssbotlib-version ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/RSSBOTLIB_VERSION.cmake")
 endif()
 add_library(_rssbotlib SHARED "${RSSBOTLIB_FILES}" videoinfo.c videoinfo.h
-ugoira.c ugoira.h zipfile.c zipfile.h)
+ugoira.c ugoira.h zipfile.c zipfile.h tg_thumbnail.c tg_thumbnail.h)
 if (WIN32)
     set_target_properties(_rssbotlib PROPERTIES SUFFIX .pyd)
 endif()

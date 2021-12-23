@@ -3,12 +3,14 @@ from videoinfo cimport *
 from avcodec cimport *
 from ugoira cimport *
 from ugoira cimport convert_ugoira_to_mp4 as cut4
+from tg_thumbnail cimport *
+from tg_thumbnail cimport convert_to_tg_thumbnail as cttt
 from libc.string cimport memcpy
 from libc.stdlib cimport malloc, free
 
 
 def version():
-    return [1, 0, 0, 1]
+    return [1, 0, 0, 2]
 
 
 cdef inline void check_err(int re) except *:
@@ -377,3 +379,35 @@ def convert_ugoira_to_mp4(src, dest, frames, max_fps = 60.0, crf = None, opts: A
     else:
         print(try_decode(ugoira_error_msg(err)))
         return False
+
+def convert_to_tg_thumbnail(src, dest, format: str = 'webp'):
+    cdef TG_THUMBNAIL_TYPE fmt = TG_THUMBNAIL_WEBP
+    cdef TG_THUMBNAIL_RESULT re
+    if isinstance(src, str):
+        tsrc = src.encode()
+    elif isinstance(src, bytes):
+        tsrc = src
+    else:
+        tsrc = str(src).encode()
+    if isinstance(dest, str):
+        tdst = dest.encode()
+    elif isinstance(dest, bytes):
+        tdst = dest
+    else:
+        tdst = str(dest).encode()
+    if format is not None:
+        if format == 'webp':
+            fmt = TG_THUMBNAIL_WEBP
+        elif format == 'jpeg':
+            fmt = TG_THUMBNAIL_JPEG
+        else:
+            raise ValueError('Unsupported output format.')
+    re = cttt(tsrc, tdst, fmt)
+    if re.err.e == TG_THUMBNAIL_OK:
+        return (re.width, re.height)
+    else:
+        if re.err.e == TG_THUMBNAIL_FFMPEG_ERROR:
+            msg = try_decode(av_err2str(re.err.fferr))
+        else:
+            msg = try_decode(tg_thumbnail_error_msg(re.err))
+        raise ValueError(msg)
