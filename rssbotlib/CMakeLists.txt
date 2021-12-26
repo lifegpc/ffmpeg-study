@@ -14,6 +14,8 @@ find_package(AVUTIL 56 REQUIRED)
 find_package(SWSCALE 5 REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module)
 
+include(GNUInstallDirs)
+
 set(RSSBOTLIB_FILES "${CMAKE_CURRENT_SOURCE_DIR}/_rssbotlib.c")
 if (WIN32)
     list(APPEND RSSBOTLIB_FILES "${CMAKE_CURRENT_BINARY_DIR}/rssbotlib.rc")
@@ -48,3 +50,5 @@ target_link_libraries(_rssbotlib AVCODEC::AVCODEC)
 target_link_libraries(_rssbotlib AVUTIL::AVUTIL)
 target_link_libraries(_rssbotlib SWSCALE::SWSCALE)
 target_link_libraries(_rssbotlib utils)
+
+install(TARGETS _rssbotlib)
