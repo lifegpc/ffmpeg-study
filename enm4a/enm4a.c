@@ -634,7 +634,17 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
             rev = ENM4A_NO_MEMORY;
             goto end;
         }
+#if NEW_CHANNEL_LAYOUT
+        if ((ret = av_channel_layout_copy(&audio_output_frame->ch_layout, &audio_output->ch_layout)) < 0) {
+            rev = ENM4A_FFMPEG_ERR;
+            goto end;
+        }
+#endif
+#if OLD_CHANNEL_LAYOUT || FF_API_OLD_CHANNEL_LAYOUT
+        DISABLE_DEPRECATION_WARNINGS
         audio_output_frame->channel_layout = audio_output->channel_layout;
+        ENABLE_DEPRECATION_WARNINGS
+#endif
         audio_output_frame->format = audio_output->sample_fmt;
         audio_output_frame->sample_rate = audio_output->sample_rate;
     }
