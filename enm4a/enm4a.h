@@ -7,6 +7,17 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 
+#if defined(__ICL) || defined (__INTEL_COMPILER)
+#define DISABLE_DEPRECATION_WARNINGS __pragma(warning(push)) __pragma(warning(disable:1478))
+#define ENABLE_DEPRECATION_WARNINGS  __pragma(warning(pop))
+#elif defined(_MSC_VER)
+#define DISABLE_DEPRECATION_WARNINGS __pragma(warning(push)) __pragma(warning(disable:4996))
+#define ENABLE_DEPRECATION_WARNINGS  __pragma(warning(pop))
+#else
+#define DISABLE_DEPRECATION_WARNINGS _Pragma("GCC diagnostic push") _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
+#define ENABLE_DEPRECATION_WARNINGS  _Pragma("GCC diagnostic pop")
+#endif
+
 typedef enum ENM4A_ERROR {
     ENM4A_OK,
     ENM4A_NULL_POINTER,

@@ -22,6 +22,18 @@
 #include "libavutil/channel_layout.h"
 #include "libswresample/swresample.h"
 
+#if LIBAVCODEC_VERSION_MAJOR < 59 || LIBAVCODEC_VERSION_MINOR < 23 || LIBAVCODEC_VERSION_MICRO < 100
+#define OLD_CHANNEL_LAYOUT 1
+#else
+#define NEW_CHANNEL_LAYOUT 1
+#endif
+
+#if NEW_CHANNEL_LAYOUT
+#define GET_AV_CODEC_CHANNELS(context) (context->ch_layout.nb_channels)
+#else
+#define GET_AV_CODEC_CHANNELS(context) (context->channels)
+#endif
+
 #ifdef _WIN32
 #include <Windows.h>
 #define ft2ts(t) (((size_t)t.dwHighDateTime << 32) | (size_t)t.dwLowDateTime)
@@ -114,7 +126,7 @@ void log_progress(const AVFormatContext* ctx, int64_t pts, AVRational base) {
         c = snprintf(nbuf, len, "\ttime=N/A");
     } else {
         int bq = base.den / base.num;
-        int secs = FFABS(pts) / bq;
+        int secs = (int)FFABS(pts) / bq;
         int us = FFABS(pts) % bq;
         int mins = secs / 60;
         secs %= 60;
@@ -146,11 +158,11 @@ ENM4A_ERROR convert_samples_and_add_to_fifo(int* ret, AVCodecContext* out, SwrCo
     if (!ret || !out || !sw || !frame || !fifo) return ENM4A_NULL_POINTER;
     uint8_t** converted_input_samples = NULL;
     ENM4A_ERROR re = ENM4A_OK;
-    if (!(converted_input_samples = malloc(sizeof(void*) * out->channels))) {
+    if (!(converted_input_samples = malloc(sizeof(void*) * GET_AV_CODEC_CHANNELS(out)))) {
         re = ENM4A_NO_MEMORY;
         goto end;
     }
-    if ((*ret = av_samples_alloc(converted_input_samples, NULL, out->channels, frame->nb_samples, out->sample_fmt, 0)) < 0) {
+    if ((*ret = av_samples_alloc(converted_input_samples, NULL, GET_AV_CODEC_CHANNELS(out), frame->nb_samples, out->sample_fmt, 0)) < 0) {
         re = ENM4A_NO_MEMORY;
         goto end;
     }
@@ -542,8 +554,15 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
                     rev = ENM4A_NO_MEMORY;
                     goto end;
                 }
+#if NEW_CHANNEL_LAYOUT
+                av_channel_layout_default(&audio_output->ch_layout, audio_input->ch_layout.nb_channels);
+#endif
+#if OLD_CHANNEL_LAYOUT || FF_API_OLD_CHANNEL_LAYOUT
+                DISABLE_DEPRECATION_WARNINGS
                 audio_output->channels = audio_input->channels;
                 audio_output->channel_layout = av_get_default_channel_layout(audio_output->channels);
+                ENABLE_DEPRECATION_WARNINGS
+#endif
                 if (args.sample_rate) {
                     audio_output->sample_rate = *(args.sample_rate);
                 } else {
@@ -567,7 +586,14 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
                     rev = ENM4A_FFMPEG_ERR;
                     goto end;
                 }
+#if NEW_CHANNEL_LAYOUT
+                if ((ret = swr_alloc_set_opts2(&resample_context, &audio_output->ch_layout, audio_output->sample_fmt, audio_output->sample_rate, &audio_input->ch_layout, audio_input->sample_fmt, audio_input->sample_rate, 0, NULL)) < 0) {
+                    rev = ENM4A_FFMPEG_ERR;
+                    goto end;
+                }
+#else
                 resample_context = swr_alloc_set_opts(NULL, av_get_default_channel_layout(audio_output->channels), audio_output->sample_fmt, audio_output->sample_rate, av_get_default_channel_layout(audio_input->channels), audio_input->sample_fmt, audio_input->sample_rate, 0, NULL);
+#endif
                 if (!resample_context) {
                     rev = ENM4A_NO_MEMORY;
                     goto end;
@@ -576,7 +602,7 @@ ENM4A_ERROR encode_m4a(const char* input, ENM4A_ARGS args) {
                     rev = ENM4A_FFMPEG_ERR;
                     goto end;
                 }
-                if (!(afifo = av_audio_fifo_alloc(audio_output->sample_fmt, audio_output->channels, 1))) {
+                if (!(afifo = av_audio_fifo_alloc(audio_output->sample_fmt, GET_AV_CODEC_CHANNELS(audio_output), 1))) {
                     rev = ENM4A_NO_MEMORY;
                     goto end;
                 }
