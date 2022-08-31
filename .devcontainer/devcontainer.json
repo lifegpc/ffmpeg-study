@@ -1,0 +1,25 @@
+{
+    "name": "Linux environment",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "customizations": {
+        "codespaces": {
+            "repositories": {
+                "lifegpc/c-utils": {
+                    "permissions": {
+                        "contents": "write",
+                        "workflows": "write"
+                    }
+                },
+                "lifegpc/getopt-msvc": {
+                    "permissions": {
+                        "contents": "write",
+                        "workflows": "write"
+                    }
+                }
+            }
+        }
+    },
+    "postCreateCommand": "cd /workspaces/ffmpeg-study && git submodule update --init"
+}

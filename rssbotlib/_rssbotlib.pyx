@@ -7,10 +7,11 @@ from tg_thumbnail cimport *
 from tg_thumbnail cimport convert_to_tg_thumbnail as cttt
 from libc.string cimport memcpy
 from libc.stdlib cimport malloc, free
+from warp cimport get_codecpar_channels
 
 
 def version():
-    return [1, 0, 0, 2]
+    return [1, 0, 0, 3]
 
 
 cdef inline void check_err(int re) except *:
@@ -166,7 +167,7 @@ cdef class StreamInfo:
     @property
     def channels(self):
         if self.info.codecpar != NULL and self.info.codecpar.codec_type == AVMEDIA_TYPE_AUDIO:
-            return self.info.codecpar.channels
+            return get_codecpar_channels(self.info.codecpar)
 
     @property
     def duration(self):
