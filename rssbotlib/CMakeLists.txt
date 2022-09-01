@@ -14,6 +14,8 @@ find_package(AVUTIL 56 REQUIRED)
 find_package(SWSCALE 5 REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module)
 
+include(CheckIncludeFiles)
+include(CheckSymbolExists)
 include(GNUInstallDirs)
 
 set(RSSBOTLIB_FILES "${CMAKE_CURRENT_SOURCE_DIR}/_rssbotlib.c")
@@ -24,6 +26,12 @@ endif()
 set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/_rssbotlib.c" PROPERTIES GENERATED TRUE)
 
 include_directories(${Python3_INCLUDE_DIR})
+
+if (WIN32)
+    check_symbol_exists(sscanf_s "stdio.h" HAVE_SSCANF_S)
+endif()
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/rssbotlib_config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/rssbotlib_config.h")
+include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 if (NOT TARGET utils)
     add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../utils" "${CMAKE_BINARY_DIR}/utils")
@@ -36,7 +44,7 @@ if (WIN32)
 endif()
 add_library(_rssbotlib SHARED "${RSSBOTLIB_FILES}" videoinfo.c videoinfo.h
 ugoira.c ugoira.h zipfile.c zipfile.h tg_thumbnail.c tg_thumbnail.h
-warp.c warp.h)
+warp.c warp.h tg_image_compress.c tg_image_compress.h utils.c utils.h)
 if (WIN32)
     set_target_properties(_rssbotlib PROPERTIES SUFFIX .pyd)
 endif()

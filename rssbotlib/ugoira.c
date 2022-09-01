@@ -11,6 +11,7 @@
 #include "libavutil/opt.h"
 #include "libswscale/swscale.h"
 #include "libavutil/timestamp.h"
+#include "utils.h"
 
 typedef struct UGOIRA_FRAME {
     char* file;
@@ -55,16 +56,6 @@ float ugoira_cal_fps(UGOIRA_FRAME** frames, size_t nb_frames, float max_fps) {
         re = GCD(re, frames[i]->delay);
     }
     return FFMIN(1000 / ((float)re), max_fps);
-}
-
-int ugoira_is_supported_pixfmt(enum AVPixelFormat fmt, const enum AVPixelFormat* fmts) {
-    size_t i = 0;
-    if (fmt == AV_PIX_FMT_NONE || !fmts) return 0;
-    while (fmts[i] != AV_PIX_FMT_NONE) {
-        if (fmt == fmts[i]) return 1;
-        i++;
-    }
-    return 0;
 }
 
 const char* ugoira_error_msg(UGOIRA_ERROR err) {
@@ -322,7 +313,7 @@ UGOIRA_ERROR convert_ugoira_to_mp4(const char* src, const char* dest, UGOIRA_FRA
             if (opt) {
                 force_yuv420p = av_dict_get(opt, "force_yuv420p", NULL, 0);
             }
-            if (!force_yuv420p && ugoira_is_supported_pixfmt(eic->pix_fmt, output_codec->pix_fmts)) {
+            if (!force_yuv420p && is_supported_pixfmt(eic->pix_fmt, output_codec->pix_fmts)) {
                 eoc->pix_fmt = eic->pix_fmt;
             } else {
                 eoc->pix_fmt = AV_PIX_FMT_YUV420P;

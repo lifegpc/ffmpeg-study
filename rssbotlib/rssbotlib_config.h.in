@@ -1,0 +1,4 @@
+#ifndef _RSSBOTLIB_CONFIG_H
+#define _RSSBOTLIB_CONFIG_H
+#cmakedefine HAVE_SSCANF_S @HAVE_SSCANF_S@
+#endif

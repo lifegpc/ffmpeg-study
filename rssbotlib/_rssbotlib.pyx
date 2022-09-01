@@ -8,10 +8,12 @@ from tg_thumbnail cimport convert_to_tg_thumbnail as cttt
 from libc.string cimport memcpy
 from libc.stdlib cimport malloc, free
 from warp cimport get_codecpar_channels
+from tg_image_compress cimport *
+from tg_image_compress cimport tg_image_compress as tic
 
 
 def version():
-    return [1, 0, 0, 3]
+    return [1, 1, 0, 0]
 
 
 cdef inline void check_err(int re) except *:
@@ -411,4 +413,38 @@ def convert_to_tg_thumbnail(src, dest, format: str = 'webp'):
             msg = try_decode(av_err2str(re.err.fferr))
         else:
             msg = try_decode(tg_thumbnail_error_msg(re.err))
+        raise ValueError(msg)
+
+
+def tg_image_compress(src, dest, format: str = 'jpeg', max_len: int = 1920, opts: AVDict = None):
+    cdef TG_IMAGE_TYPE fmt = TG_IMAGE_JPEG
+    cdef TG_IMAGE_RESULT re
+    cdef AVDictionary* opt = NULL if opts is None else opts.cget()
+    if isinstance(src, str):
+        tsrc = src.encode()
+    elif isinstance(src, bytes):
+        tsrc = src
+    else:
+        tsrc = str(src).encode()
+    if isinstance(dest, str):
+        tdst = dest.encode()
+    elif isinstance(dest, bytes):
+        tdst = dest
+    else:
+        tdst = str(dest).encode()
+    if format is not None:
+        if format == 'jpeg':
+            fmt = TG_IMAGE_JPEG
+        elif format == 'png':
+            fmt = TG_IMAGE_PNG
+        else:
+            raise ValueError('Unsupported output format.')
+    re = tic(tsrc, tdst, fmt, max_len, opt)
+    if re.err.e == TG_IMAGE_OK:
+        return (re.width, re.height)
+    else:
+        if re.err.e == TG_IMAGE_FFMPEG_ERROR:
+            msg = try_decode(av_err2str(re.err.fferr))
+        else:
+            msg = try_decode(tg_image_error_msg(re.err))
         raise ValueError(msg)
