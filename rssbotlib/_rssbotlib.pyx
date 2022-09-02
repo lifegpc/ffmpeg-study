@@ -13,7 +13,7 @@ from tg_image_compress cimport tg_image_compress as tic
 
 
 def version():
-    return [1, 1, 0, 0]
+    return [1, 1, 0, 1]
 
 
 cdef inline void check_err(int re) except *:

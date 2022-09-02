@@ -15,10 +15,6 @@
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 #endif
 
-#ifdef HAVE_SSCANF_S
-#define sscanf sscanf_s
-#endif
-
 void init_tg_image_error(TG_IMAGE_ERROR* err) {
     if (!err) return;
     memset(err, 0, sizeof(TG_IMAGE_ERROR));
@@ -57,6 +53,8 @@ const char* tg_image_type_name(TG_IMAGE_TYPE type) {
         return "mjpeg";
     case TG_IMAGE_PNG:
         return "png";
+    default:
+        return NULL;
     }
 }
 
@@ -181,7 +179,11 @@ TG_IMAGE_RESULT tg_image_compress(const char* src, const char* dest, TG_IMAGE_TY
     if (opts) {
         AVDictionaryEntry* tmp = av_dict_get(opts, "force_yuv420p", NULL, 0);
         if (tmp) {
+#if HAVE_SSCANF_S
+            if (sscanf_s(tmp->value, "%c", &force_yuv420p, 1) != 1) {
+#else
             if (sscanf(tmp->value, "%c", &force_yuv420p) != 1) {
+#endif
                 force_yuv420p = 1;
             }
         }
